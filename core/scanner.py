@@ -2,7 +2,7 @@ import time
 import logging
 
 from config import REQUESTED_SYMBOLS, COMMENTARY_SYMBOLS, SIGNALS_LOG_PATH
-from core.exchange_client import get_valid_futures_symbols, get_kline_limit, fetch_klines
+from core.exchange_client import get_kline_limit, fetch_klines
 from macro_bridge import macro_direction_for_symbol, get_macro_signal
 from high_alert_bridge import is_high_alert, get_high_alert_assets
 from core.indicator_engine import build_levels
@@ -14,12 +14,28 @@ from remote_config import load_config
 from core.mtf_signal_engine import analyze_mtf_signal, build_mtf_context
 
 
+def _safe_symbols(values):
+    result = []
+    seen = set()
+    for value in values or []:
+        symbol = str(value or "").upper().strip()
+        if symbol and symbol not in seen:
+            result.append(symbol)
+            seen.add(symbol)
+    return result
+
+
 def get_active_symbols():
-    """
-    Borsadaki geçerli futures sembollerini döndürür.
-    High alert sembol listesini daraltmaz; sadece mesaj/öncelik katmanı olarak kullanılır.
-    """
-    return get_valid_futures_symbols()
+    cfg = load_config()
+    symbols = _safe_symbols(cfg.get("watchlist", {}).get("symbols", []))
+    if symbols:
+        return symbols
+
+    symbols = _safe_symbols(REQUESTED_SYMBOLS)
+    if symbols:
+        return symbols
+
+    return ["BTCUSDT", "ETHUSDT"]
 
 
 def log_signal(symbol, timeframe, strategy_name, signal, reason, levels, mode=None):
@@ -48,33 +64,6 @@ def _fetch_context(symbol, tf):
         return candles, None
 
     return candles, levels
-
-
-def _bias_text(entry_signal, bias_levels, setup_levels, plan):
-    bias_tf = plan["bias"]
-    setup_tf = plan["setup"]
-    entry_tf = plan["entry"]
-
-    bias_close = bias_levels.get("close") if bias_levels else None
-    bias_center = bias_levels.get("center") if bias_levels else None
-    setup_close = setup_levels.get("close") if setup_levels else None
-    setup_center = setup_levels.get("center") if setup_levels else None
-
-    bias_side = "nötr"
-    setup_side = "nötr"
-
-    if bias_close is not None and bias_center is not None:
-        bias_side = "yukarı" if bias_close >= bias_center else "aşağı"
-
-    if setup_close is not None and setup_center is not None:
-        setup_side = "yukarı" if setup_close >= setup_center else "aşağı"
-
-    return (
-        f"Mod: {plan['label']} ({plan['mode']})\n"
-        f"Zaman Yapısı: Bias {bias_tf} | Setup {setup_tf} | Entry {entry_tf}\n"
-        f"Bias Durumu: {bias_tf} {bias_side}\n"
-        f"Setup Durumu: {setup_tf} {setup_side}"
-    )
 
 
 def build_signal_lines(symbols, state):
@@ -137,30 +126,6 @@ def build_signal_lines(symbols, state):
 
                     price = entry_levels["close"]
                     center = entry_levels["center"]
-
-                    if signal == "LONG":
-                        trend_text = "Yükseliş trendi; fiyat entry merkez üstünde tutunuyor."
-                        risk_text = f"{center:.2f} altı entry kapanışı senaryoyu zayıflatır."
-                        follow_text = "Yukarı yönlü devam beklenir."
-                    elif signal == "SHORT":
-                        trend_text = "Düşüş trendi; fiyat entry merkez altında baskı görüyor."
-                        risk_text = f"{center:.2f} üstü entry kapanışı senaryoyu bozar."
-                        follow_text = "Aşağı yönlü devam izlenmeli."
-                    elif "OVERBOUGHT" in signal:
-                        trend_text = "Aşırı alım bölgesi; fiyat genişleme yapmış durumda."
-                        risk_text = "Yukarıda tutunamazsa sert düzeltme gelebilir."
-                        follow_text = "Geri çekilme / düzeltme takip edilmeli."
-                    elif "OVERSOLD" in signal:
-                        trend_text = "Aşırı satım bölgesi; tepki ihtimali oluşuyor."
-                        risk_text = "Satış baskısı devam ederse düşüş sürebilir."
-                        follow_text = "Tepki alımı izlenmeli."
-                    else:
-                        trend_text = "Nötr yapı."
-                        risk_text = "Belirsiz piyasa."
-                        follow_text = "Ek teyit beklenmeli."
-
-                    cancel_level = center
-
                     direction = "LONG" if "LONG" in signal else "SHORT" if "SHORT" in signal else signal
 
                     if direction == "LONG":
@@ -208,8 +173,8 @@ def build_signal_lines(symbols, state):
                             tp_text += f"TP{i}: {tp:.2f}\n"
 
                     message_block = (
-                        f"🚨 {strategy_name}\n\n"
-                        f"{symbol} ({plan['label']} - {entry_tf.upper()}) → {direction} | {mtf['quality']} {mtf['score']}/100\n\n"
+                        f"{strategy_name}\n\n"
+                        f"{symbol} ({plan['label']} - {entry_tf.upper()}) -> {direction} | {mtf['quality']} {mtf['score']}/100\n\n"
                         f"Neden:\n{reason_clean}\n\n"
                         f"Seviyeler:\n"
                         f"Entry: {price:.2f}\n"
@@ -226,11 +191,10 @@ def build_signal_lines(symbols, state):
                 lines.append(block)
 
         except Exception as e:
-            logging.exception("Sembol tarama hatası; sembol atlandı | %s | %s", symbol, e)
+            logging.exception("Sembol tarama hatasi; sembol atlandi | %s | %s", symbol, e)
             continue
 
     return lines
-
 
 
 def build_signal_message(symbols, state):
@@ -238,7 +202,7 @@ def build_signal_message(symbols, state):
     if not lines:
         return None
 
-    return "🚨 SİNYAL\n\n" + "\n\n".join(lines)
+    return "SINYAL\n\n" + "\n\n".join(lines)
 
 
 def get_daily_commentaries(symbols, state):
