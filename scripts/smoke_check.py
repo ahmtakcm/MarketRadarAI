@@ -33,17 +33,25 @@ def main():
     print(f"telegram_polling_enabled={telegram_polling_enabled()}")
 
     if args.live:
-        from core.exchange_client import fetch_klines, validate_futures_symbol
+        from core.exchange_client import fetch_klines, get_kline_limit, validate_futures_symbol
+        from core.indicator_engine import build_levels
 
         ok, reason = validate_futures_symbol("BTCUSDT")
         print(f"validate_BTCUSDT={ok} reason={reason}")
         if not ok:
             return 1
 
-        candles = fetch_klines("BTCUSDT", "15m", 30)
+        candle_limit = get_kline_limit("15m")
+        candles = fetch_klines("BTCUSDT", "15m", candle_limit)
         ok, reason = check_candle_shape(candles)
-        print(f"candle_shape={ok} reason={reason}")
+        print(f"candle_shape={ok} reason={reason} count={len(candles)}/{candle_limit}")
         if not ok:
+            return 1
+
+        levels = build_levels(candles)
+        levels_ok = levels is not None
+        print(f"levels_ready={levels_ok}")
+        if not levels_ok:
             return 1
 
     return 0
