@@ -15,10 +15,8 @@ from core.scheduler import next_sleep_seconds
 from notifiers.telegram_notifier import send_telegram
 
 from remote_config import load_config, save_config
-from telegram_commands import poll_telegram_commands
 from signal_journal import append_signal_message, set_last_signal
 from single_instance import single_instance
-import threading
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -52,9 +50,7 @@ def _pc_user_text():
 
 
 def _send_lifecycle(title, fields=None):
-    # Kullanıcıya gereksiz process/klasör/PC detayı gönderme.
-    # Sadece tek ve sade başlangıç mesajı gönder.
-    if "Bot süreci başladı" in str(title) or "Process başladı" in str(title):
+    if "Bot sureci basladi" in str(title) or "Process basladi" in str(title):
         return
 
     fields = fields or {}
@@ -69,8 +65,7 @@ def _send_lifecycle(title, fields=None):
     try:
         send_telegram(text)
     except Exception as e:
-        logging.warning("Lifecycle Telegram mesajı gönderilemedi: %s", e)
-
+        logging.warning("Lifecycle Telegram mesaji gonderilemedi: %s", e)
 
 
 def _safe_symbols(values):
@@ -96,7 +91,7 @@ def _save_symbol_cache(symbols, source="live"):
         tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         os.replace(tmp, SYMBOL_CACHE_PATH)
     except Exception as e:
-        logging.warning("Sembol cache yazılamadı: %s", e)
+        logging.warning("Sembol cache yazilamadi: %s", e)
 
 
 def _load_symbol_cache():
@@ -108,7 +103,7 @@ def _load_symbol_cache():
         saved_at = data.get("saved_at")
         return symbols, saved_at
     except Exception as e:
-        logging.warning("Sembol cache okunamadı: %s", e)
+        logging.warning("Sembol cache okunamadi: %s", e)
         return [], None
 
 
@@ -119,34 +114,30 @@ def _default_fallback_symbols():
 def _fetch_live_symbols_once():
     symbols = _safe_symbols(get_active_symbols())
     if not symbols:
-        raise RuntimeError("Aktif sembol listesi boş geldi")
+        raise RuntimeError("Aktif sembol listesi bos geldi")
     return symbols
 
 
 def load_symbols_resilient():
-    """
-    Eski davranışta bot burada sonsuza kadar bekliyordu.
-    Yeni davranış: birkaç deneme yap, olmazsa cache/default sembollerle taramaya devam et.
-    """
     last_error = None
 
     for attempt in range(1, STARTUP_SYMBOL_ATTEMPTS + 1):
         try:
             symbols = _fetch_live_symbols_once()
             _save_symbol_cache(symbols, source="live")
-            logging.info("Aktif semboller alındı: %s adet", len(symbols))
+            logging.info("Aktif semboller alindi: %s adet", len(symbols))
             _send_lifecycle(
-                "✅ Bot çalışıyor",
+                "Bot calisiyor",
                 {
-                    "Tarama durumu": "Başladı",
-                    "Geçerli borsa sembol sayısı": len(symbols),
+                    "Tarama durumu": "Basladi",
+                    "Gecerli borsa sembol sayisi": len(symbols),
                 },
             )
             return symbols, False, time.time()
         except Exception as e:
             last_error = e
             logging.exception(
-                "Aktif semboller alınamadı, startup denemesi %s/%s: %s",
+                "Aktif semboller alinamadi, startup denemesi %s/%s: %s",
                 attempt,
                 STARTUP_SYMBOL_ATTEMPTS,
                 e,
@@ -163,22 +154,21 @@ def load_symbols_resilient():
         source = "default settings.json symbols"
 
     if not fallback:
-        # Son çare: en azından çekirdek sembollerle döngüyü başlat.
-        fallback = ["BTCUSDT", "ETHUSDT", "XAUUSDT", "XAGUSDT"]
+        fallback = ["BTCUSDT", "ETHUSDT"]
         source = "hardcoded emergency fallback"
 
     logging.warning(
-        "Aktif sembol listesi alınamadı; fallback sembollerle devam ediliyor | kaynak=%s | sembol=%s | hata=%s",
+        "Aktif sembol listesi alinamadi; fallback sembollerle devam ediliyor | kaynak=%s | sembol=%s | hata=%s",
         source,
         ", ".join(fallback),
         last_error,
     )
     _send_lifecycle(
-        "⚠️ Bot başladı ama borsa sembol listesi alınamadı",
+        "Bot basladi ama borsa sembol listesi alinamadi",
         {
-            "Durum": "Fallback sembollerle tarama sürecek",
+            "Durum": "Fallback sembollerle tarama surecek",
             "Kaynak": source,
-            "Sembol sayısı": len(fallback),
+            "Sembol sayisi": len(fallback),
             "Son hata": str(last_error)[:220],
         },
     )
@@ -196,10 +186,10 @@ def maybe_refresh_symbols(current_symbols, degraded, last_refresh, last_degraded
         logging.info("Aktif sembol listesi yenilendi: %s adet", len(symbols))
         if degraded:
             _send_lifecycle(
-                "✅ Borsa sembol listesi tekrar alındı",
+                "Borsa sembol listesi tekrar alindi",
                 {
-                    "Durum": "Normal tarama moduna dönüldü",
-                    "Sembol sayısı": len(symbols),
+                    "Durum": "Normal tarama moduna donuldu",
+                    "Sembol sayisi": len(symbols),
                     "Kaynak": "live",
                 },
             )
@@ -209,20 +199,20 @@ def maybe_refresh_symbols(current_symbols, degraded, last_refresh, last_degraded
         logging.exception("Aktif sembol listesi yenilenemedi; mevcut/fallback listeyle devam: %s", e)
         if not degraded:
             _send_lifecycle(
-                "⚠️ Borsa sembol listesi yenilenemedi",
+                "Borsa sembol listesi yenilenemedi",
                 {
-                    "Durum": "Son bilinen sembol listesiyle tarama sürecek",
-                    "Sembol sayısı": len(current_symbols),
+                    "Durum": "Son bilinen sembol listesiyle tarama surecek",
+                    "Sembol sayisi": len(current_symbols),
                     "Son hata": str(e)[:220],
                 },
             )
             last_degraded_notice = now
         elif now - last_degraded_notice >= DEGRADED_REMINDER_SECONDS:
             _send_lifecycle(
-                "⚠️ Borsa sembol listesi hâlâ alınamıyor",
+                "Borsa sembol listesi hala alinamiyor",
                 {
-                    "Durum": "Fallback/son bilinen listeyle tarama sürüyor",
-                    "Sembol sayısı": len(current_symbols),
+                    "Durum": "Fallback/son bilinen listeyle tarama suruyor",
+                    "Sembol sayisi": len(current_symbols),
                     "Son hata": str(e)[:220],
                 },
             )
@@ -254,25 +244,19 @@ def consume_force_scan_request():
         if runtime.get("force_scan_once"):
             runtime["force_scan_once"] = False
             save_config(cfg)
-            logging.info("Telegram /scan_now isteği alındı; tarama hemen çalıştırılacak")
+            logging.info("force_scan_once istegi alindi; tarama hemen calistirilacak")
             return True
     except Exception as e:
-        logging.exception("force_scan_once kontrol hatası: %s", e)
+        logging.exception("force_scan_once kontrol hatasi: %s", e)
     return False
 
 
 def apply_watchlist_filter(discovered_symbols):
-    """
-    Watchlist kesin kural:
-    - Bot sadece watchlist.symbols listesindeki sembolleri tarar.
-    - Liste boşsa tarama yapılmaz.
-    - Tüm borsa/default sembol taraması yapılmaz.
-    """
     cfg = load_config()
     wanted = _safe_symbols(cfg.get("watchlist", {}).get("symbols", []))
 
     if not wanted:
-        logging.warning("Watchlist boş; tarama yapılmayacak.")
+        logging.warning("Watchlist bos; tarama yapilmayacak.")
         return []
 
     discovered = set(_safe_symbols(discovered_symbols))
@@ -280,68 +264,26 @@ def apply_watchlist_filter(discovered_symbols):
 
     missing = [s for s in wanted if s not in discovered]
     if missing:
-        logging.warning("Watchlist içinde borsada doğrulanamayan semboller var: %s", ", ".join(missing))
+        logging.warning("Watchlist icinde borsada dogrulanamayan semboller var: %s", ", ".join(missing))
 
     return selected
 
 
+def sleep_until_next_scan(seconds):
+    time.sleep(max(1, int(seconds)))
 
-def sleep_with_command_polling(seconds):
-    end_time = time.time() + max(1, int(seconds))
-
-    while time.time() < end_time:
-        try:
-            pass  # telegram polling disabled
-            cfg = load_config()
-            if cfg.get("runtime", {}).get("force_scan_once"):
-                logging.info("/scan_now bayrağı görüldü; uyku erken kesiliyor")
-                return
-        except Exception as e:
-            logging.exception("Uyku sırasında Telegram komut okuma hatası: %s", e)
-
-        time.sleep(1)
-
-
-
-# TELEGRAM_COMMAND_THREAD_PATCH_V1_START
-_telegram_command_thread_started = False
-
-
-def _telegram_command_thread_loop():
-    logging.info("Telegram komut thread'i başladı")
-    while True:
-        try:
-            pass  # telegram polling disabled
-        except Exception as e:
-            logging.exception("Telegram komut thread hatası: %s", e)
-        time.sleep(1.5)
-
-
-def start_telegram_command_thread():
-    global _telegram_command_thread_started
-    if _telegram_command_thread_started:
-        return
-    t = threading.Thread(
-        target=_telegram_command_thread_loop,
-        name="telegram-command-poller",
-        daemon=True,
-    )
-    t.start()
-    _telegram_command_thread_started = True
-# TELEGRAM_COMMAND_THREAD_PATCH_V1_END
 
 def main():
     state = load_state()
 
-    logging.info("Bot başladı")
+    logging.info("Bot basladi")
     _send_lifecycle(
-        "✅ Bot süreci başladı / ayağa kalktı",
+        "Bot sureci basladi / ayaga kalkti",
         {
-            "Durum": "Process başladı",
+            "Durum": "Process basladi",
         },
     )
 
-    # start_telegram_command_thread()  # disabled: tek Telegram polling ana döngüde yapılacak
     discovered_symbols, symbol_degraded, last_symbol_refresh = load_symbols_resilient()
     last_degraded_notice = time.time() if symbol_degraded else 0
 
@@ -351,9 +293,6 @@ def main():
     while True:
         try:
             consume_force_scan_request()
-            # Telegram komutlarını ana bot içinde oku.
-            # Ayrı telegram_remote.py çalıştırılmayacak.
-            pass  # telegram polling disabled
 
             discovered_symbols, symbol_degraded, last_symbol_refresh, last_degraded_notice = maybe_refresh_symbols(
                 discovered_symbols,
@@ -362,7 +301,6 @@ def main():
                 last_degraded_notice,
             )
 
-            # Watchlist değişmiş olabilir; her turda hafifçe uygula.
             symbols = apply_watchlist_filter(discovered_symbols)
 
             if bot_allowed_to_scan():
@@ -374,9 +312,9 @@ def main():
 
                     if not is_quiet_mode():
                         send_telegram(signal_message)
-                        logging.info("Yeni sinyal mesajı gönderildi")
+                        logging.info("Yeni sinyal mesaji gonderildi")
                     else:
-                        logging.info("Quiet mode açık; sinyal kaydedildi ama gönderilmedi")
+                        logging.info("Quiet mode acik; sinyal kaydedildi ama gonderilmedi")
 
                     state["last_sent_message"] = signal_message
 
@@ -384,20 +322,20 @@ def main():
                     commentaries = get_daily_commentaries(symbols, state)
                     for msg in commentaries:
                         send_telegram(msg)
-                        logging.info("Günlük yorum gönderildi")
+                        logging.info("Gunluk yorum gonderildi")
                 else:
-                    logging.info("Quiet mode açık; günlük yorum gönderimi atlandı")
+                    logging.info("Quiet mode acik; gunluk yorum gonderimi atlandi")
 
                 finalize_pending_signals(state, fetch_klines, get_kline_limit)
                 save_state(state)
 
             else:
-                logging.info("Tarama atlandı: bot pasif veya kill switch açık")
+                logging.info("Tarama atlandi: bot pasif veya kill switch acik")
 
         except Exception as e:
-            logging.exception("Ana döngü hatası: %s", e)
+            logging.exception("Ana dongu hatasi: %s", e)
 
-        sleep_with_command_polling(next_sleep_seconds())
+        sleep_until_next_scan(next_sleep_seconds())
 
 
 if __name__ == "__main__":
