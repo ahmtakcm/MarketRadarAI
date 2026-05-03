@@ -29,6 +29,8 @@ SECONDS_MAP = {
     "Week1": 604800,
 }
 
+MIN_SCAN_KLINE_LIMIT = 300
+
 _session = requests.Session()
 
 
@@ -189,4 +191,5 @@ def get_valid_futures_symbols():
 
 
 def get_kline_limit(tf=None, *args, **kwargs):
-    return 200
+    # indicator_engine.build_levels needs EMA244, so scanner contexts must fetch more than 244 candles.
+    return MIN_SCAN_KLINE_LIMIT
