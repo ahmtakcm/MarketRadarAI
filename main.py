@@ -1,5 +1,4 @@
 import datetime as dt
-import json
 import logging
 import os
 import socket
@@ -8,9 +7,9 @@ from pathlib import Path
 
 from config import APP_LOG_PATH, REQUESTED_SYMBOLS
 from core.state_store import load_state, save_state
-from core.scanner import get_active_symbols, build_signal_message, get_daily_commentaries
+from core.scanner import build_signal_message, get_daily_commentaries
 from core.performance_tracker import finalize_pending_signals
-from core.exchange_client import fetch_klines, get_kline_limit, get_ranked_futures_symbols
+from core.exchange_client import fetch_klines, get_kline_limit, validate_futures_symbol
 from core.scheduler import next_sleep_seconds
 from notifiers.telegram_notifier import send_telegram
 
@@ -20,13 +19,12 @@ from single_instance import single_instance
 
 
 BASE_DIR = Path(__file__).resolve().parent
-STORAGE_DIR = BASE_DIR / "storage"
-SYMBOL_CACHE_PATH = STORAGE_DIR / "last_active_symbols.json"
 
 STARTUP_SYMBOL_ATTEMPTS = 3
 STARTUP_SYMBOL_RETRY_SECONDS = 10
 SYMBOL_REFRESH_SECONDS = 300
 DEGRADED_REMINDER_SECONDS = 1800
+DEFAULT_SYMBOLS = ["BTCUSDT", "ETHUSDT"]
 
 
 LOG_LEVEL = os.getenv("MEXC_LOG_LEVEL", "INFO").upper()
@@ -79,43 +77,36 @@ def _safe_symbols(values):
     return result
 
 
-def _save_symbol_cache(symbols, source="live"):
-    try:
-        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "saved_at": _now_text(),
-            "source": source,
-            "symbols": _safe_symbols(symbols),
-        }
-        tmp = SYMBOL_CACHE_PATH.with_suffix(".tmp")
-        tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-        os.replace(tmp, SYMBOL_CACHE_PATH)
-    except Exception as e:
-        logging.warning("Sembol cache yazilamadi: %s", e)
+def configured_scan_symbols():
+    cfg = load_config()
+    symbols = _safe_symbols(cfg.get("watchlist", {}).get("symbols", []))
+    source = "remote_config.watchlist.symbols"
 
-
-def _load_symbol_cache():
-    try:
-        if not SYMBOL_CACHE_PATH.exists():
-            return [], None
-        data = json.loads(SYMBOL_CACHE_PATH.read_text(encoding="utf-8-sig"))
-        symbols = _safe_symbols(data.get("symbols", []))
-        saved_at = data.get("saved_at")
-        return symbols, saved_at
-    except Exception as e:
-        logging.warning("Sembol cache okunamadi: %s", e)
-        return [], None
-
-
-def _default_fallback_symbols():
-    return _safe_symbols(REQUESTED_SYMBOLS)
-
-
-def _fetch_live_symbols_once():
-    symbols = _safe_symbols(get_active_symbols())
     if not symbols:
-        raise RuntimeError("Aktif sembol listesi bos geldi")
-    return symbols
+        symbols = _safe_symbols(REQUESTED_SYMBOLS)
+        source = "settings.json symbols"
+
+    if not symbols:
+        symbols = list(DEFAULT_SYMBOLS)
+        source = "hardcoded fallback"
+
+    logging.info("Watchlist sembolleri: %s | kaynak=%s", ", ".join(symbols), source)
+    return symbols, source
+
+
+def validate_scan_symbols(symbols, tf="15m", min_candles=30):
+    valid = []
+    invalid = []
+
+    for symbol in _safe_symbols(symbols):
+        ok, reason = validate_futures_symbol(symbol, tf=tf, min_candles=min_candles)
+        if ok:
+            valid.append(symbol)
+        else:
+            invalid.append((symbol, reason))
+            logging.warning("Watchlist sembolu gecersiz; atlandi | %s | %s", symbol, reason)
+
+    return valid, invalid
 
 
 def load_symbols_resilient():
@@ -123,21 +114,29 @@ def load_symbols_resilient():
 
     for attempt in range(1, STARTUP_SYMBOL_ATTEMPTS + 1):
         try:
-            symbols = _fetch_live_symbols_once()
-            _save_symbol_cache(symbols, source="live")
-            logging.info("Aktif semboller alindi: %s adet", len(symbols))
+            configured, source = configured_scan_symbols()
+            symbols, invalid = validate_scan_symbols(configured)
+            if not symbols:
+                raise RuntimeError("Gecerli watchlist sembolu bulunamadi")
+
+            logging.info(
+                "Watchlist dogrulandi: %s | gecersiz=%s | kaynak=%s",
+                ", ".join(symbols),
+                len(invalid),
+                source,
+            )
             _send_lifecycle(
                 "Bot calisiyor",
                 {
                     "Tarama durumu": "Basladi",
-                    "Gecerli borsa sembol sayisi": len(symbols),
+                    "Watchlist sembolleri": ", ".join(symbols),
                 },
             )
             return symbols, False, time.time()
         except Exception as e:
             last_error = e
             logging.exception(
-                "Aktif semboller alinamadi, startup denemesi %s/%s: %s",
+                "Watchlist dogrulanamadi, startup denemesi %s/%s: %s",
                 attempt,
                 STARTUP_SYMBOL_ATTEMPTS,
                 e,
@@ -145,30 +144,18 @@ def load_symbols_resilient():
             if attempt < STARTUP_SYMBOL_ATTEMPTS:
                 time.sleep(STARTUP_SYMBOL_RETRY_SECONDS)
 
-    cached_symbols, cached_at = _load_symbol_cache()
-    if cached_symbols:
-        fallback = cached_symbols
-        source = f"cache ({cached_at or 'tarih yok'})"
-    else:
-        fallback = _default_fallback_symbols()
-        source = "default settings.json symbols"
-
-    if not fallback:
-        fallback = ["BTCUSDT", "ETHUSDT"]
-        source = "hardcoded emergency fallback"
+    fallback = list(DEFAULT_SYMBOLS)
 
     logging.warning(
-        "Aktif sembol listesi alinamadi; fallback sembollerle devam ediliyor | kaynak=%s | sembol=%s | hata=%s",
-        source,
+        "Watchlist dogrulanamadi; minimum fallback sembollerle devam ediliyor | sembol=%s | hata=%s",
         ", ".join(fallback),
         last_error,
     )
     _send_lifecycle(
-        "Bot basladi ama borsa sembol listesi alinamadi",
+        "Bot basladi ama watchlist dogrulanamadi",
         {
-            "Durum": "Fallback sembollerle tarama surecek",
-            "Kaynak": source,
-            "Sembol sayisi": len(fallback),
+            "Durum": "Minimum fallback sembollerle tarama surecek",
+            "Watchlist sembolleri": ", ".join(fallback),
             "Son hata": str(last_error)[:220],
         },
     )
@@ -181,38 +168,45 @@ def maybe_refresh_symbols(current_symbols, degraded, last_refresh, last_degraded
         return current_symbols, degraded, last_refresh, last_degraded_notice
 
     try:
-        symbols = _fetch_live_symbols_once()
-        _save_symbol_cache(symbols, source="live")
-        logging.info("Aktif sembol listesi yenilendi: %s adet", len(symbols))
+        configured, source = configured_scan_symbols()
+        symbols, invalid = validate_scan_symbols(configured)
+        if not symbols:
+            raise RuntimeError("Gecerli watchlist sembolu bulunamadi")
+
+        logging.info(
+            "Watchlist yenilendi: %s | gecersiz=%s | kaynak=%s",
+            ", ".join(symbols),
+            len(invalid),
+            source,
+        )
         if degraded:
             _send_lifecycle(
-                "Borsa sembol listesi tekrar alindi",
+                "Watchlist tekrar dogrulandi",
                 {
                     "Durum": "Normal tarama moduna donuldu",
-                    "Sembol sayisi": len(symbols),
-                    "Kaynak": "live",
+                    "Watchlist sembolleri": ", ".join(symbols),
                 },
             )
         return symbols, False, now, 0
 
     except Exception as e:
-        logging.exception("Aktif sembol listesi yenilenemedi; mevcut/fallback listeyle devam: %s", e)
+        logging.exception("Watchlist yenilenemedi; mevcut listeyle devam: %s", e)
         if not degraded:
             _send_lifecycle(
-                "Borsa sembol listesi yenilenemedi",
+                "Watchlist yenilenemedi",
                 {
                     "Durum": "Son bilinen sembol listesiyle tarama surecek",
-                    "Sembol sayisi": len(current_symbols),
+                    "Watchlist sembolleri": ", ".join(current_symbols),
                     "Son hata": str(e)[:220],
                 },
             )
             last_degraded_notice = now
         elif now - last_degraded_notice >= DEGRADED_REMINDER_SECONDS:
             _send_lifecycle(
-                "Borsa sembol listesi hala alinamiyor",
+                "Watchlist hala dogrulanamiyor",
                 {
-                    "Durum": "Fallback/son bilinen listeyle tarama suruyor",
-                    "Sembol sayisi": len(current_symbols),
+                    "Durum": "Son bilinen listeyle tarama suruyor",
+                    "Watchlist sembolleri": ", ".join(current_symbols),
                     "Son hata": str(e)[:220],
                 },
             )
@@ -251,55 +245,6 @@ def consume_force_scan_request():
     return False
 
 
-def apply_symbol_selection(discovered_symbols):
-    cfg = load_config()
-    wanted = _safe_symbols(cfg.get("watchlist", {}).get("symbols", []))
-    expansion = cfg.get("symbol_expansion", {})
-    expansion_enabled = bool(expansion.get("enabled", False))
-    max_symbols = max(int(expansion.get("max_symbols", len(wanted) or 0) or 0), 0)
-    min_24h_volume = float(expansion.get("min_24h_volume", 0) or 0)
-    include_watchlist = bool(expansion.get("include_watchlist", True))
-    exclude_symbols = set(_safe_symbols(expansion.get("exclude_symbols", [])))
-
-    if not wanted and not expansion_enabled:
-        logging.warning("Watchlist bos; tarama yapilmayacak.")
-        return []
-
-    discovered = set(_safe_symbols(discovered_symbols))
-    selected = []
-    if include_watchlist:
-        selected = [s for s in wanted if s in discovered and s not in exclude_symbols]
-
-    missing = [s for s in wanted if s not in discovered]
-    if missing:
-        logging.warning("Watchlist icinde borsada dogrulanamayan semboller var: %s", ", ".join(missing))
-
-    if expansion_enabled and max_symbols > len(selected):
-        try:
-            ranked = get_ranked_futures_symbols(max_symbols * 3, min_24h_volume=min_24h_volume)
-        except Exception as e:
-            logging.exception("MEXC sembol genisletme listesi alinamadi: %s", e)
-            ranked = []
-
-        for symbol in _safe_symbols(ranked):
-            if symbol in selected or symbol in exclude_symbols or symbol not in discovered:
-                continue
-            selected.append(symbol)
-            if len(selected) >= max_symbols:
-                break
-
-    if max_symbols:
-        selected = selected[:max_symbols]
-
-    logging.info(
-        "Sembol secimi tamamlandi | watchlist=%s | expansion=%s | selected=%s",
-        len(wanted),
-        expansion_enabled,
-        len(selected),
-    )
-    return selected
-
-
 def sleep_until_next_scan(seconds):
     time.sleep(max(1, int(seconds)))
 
@@ -315,24 +260,21 @@ def main():
         },
     )
 
-    discovered_symbols, symbol_degraded, last_symbol_refresh = load_symbols_resilient()
+    symbols, symbol_degraded, last_symbol_refresh = load_symbols_resilient()
     last_degraded_notice = time.time() if symbol_degraded else 0
 
-    symbols = apply_symbol_selection(discovered_symbols)
     logging.info("Tarama sembolleri: %s", ", ".join(symbols))
 
     while True:
         try:
             consume_force_scan_request()
 
-            discovered_symbols, symbol_degraded, last_symbol_refresh, last_degraded_notice = maybe_refresh_symbols(
-                discovered_symbols,
+            symbols, symbol_degraded, last_symbol_refresh, last_degraded_notice = maybe_refresh_symbols(
+                symbols,
                 symbol_degraded,
                 last_symbol_refresh,
                 last_degraded_notice,
             )
-
-            symbols = apply_symbol_selection(discovered_symbols)
 
             if bot_allowed_to_scan():
                 signal_message = build_signal_message(symbols, state)
