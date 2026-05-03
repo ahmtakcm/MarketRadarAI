@@ -8,7 +8,7 @@ MEXC_BASE = "https://contract.mexc.com"
 
 INTERVAL_MAP = {
     "1m": "Min1",
-    "3m": "Min5",      # MEXC futures tarafında Min3 yok; güvenli fallback
+    "3m": "Min5",      # MEXC futures tarafinda Min3 yok; guvenli fallback
     "5m": "Min5",
     "15m": "Min15",
     "30m": "Min30",
@@ -18,21 +18,32 @@ INTERVAL_MAP = {
     "1w": "Week1",
 }
 
+SECONDS_MAP = {
+    "Min1": 60,
+    "Min5": 300,
+    "Min15": 900,
+    "Min30": 1800,
+    "Min60": 3600,
+    "Hour4": 14400,
+    "Day1": 86400,
+    "Week1": 604800,
+}
+
 _session = requests.Session()
 
 
 def _get(path: str, params: Optional[Dict[str, Any]] = None, timeout: int = 10) -> Dict[str, Any]:
     url = f"{MEXC_BASE}{path}"
     try:
-        r = _session.get(url, params=params or {}, timeout=timeout)
-        r.raise_for_status()
-        data = r.json()
+        response = _session.get(url, params=params or {}, timeout=timeout)
+        response.raise_for_status()
+        data = response.json()
         if not isinstance(data, dict):
             return {"success": False, "data": None, "message": "non-dict response"}
         return data
-    except Exception as e:
-        logging.warning("MEXC GET hata | path=%s params=%s err=%s", path, params, e)
-        return {"success": False, "data": None, "message": str(e)}
+    except Exception as exc:
+        logging.warning("MEXC GET hata | path=%s params=%s err=%s", path, params, exc)
+        return {"success": False, "data": None, "message": str(exc)}
 
 
 def normalize_symbol(symbol: str) -> str:
@@ -57,7 +68,7 @@ def get_symbols() -> List[str]:
     rows = data.get("data") if data.get("success") else None
 
     if not isinstance(rows, list):
-        logging.warning("MEXC sembol listesi alınamadı")
+        logging.warning("MEXC sembol listesi alinamadi")
         return []
 
     symbols: List[str] = []
@@ -72,11 +83,9 @@ def get_symbols() -> List[str]:
         if not symbol:
             continue
 
-        # USDT perpetual ağırlıklı tarama
         if quote and str(quote).upper() != "USDT":
             continue
 
-        # state yoksa eleme yapma; varsa aktif olmayanları dışla
         if state is not None and str(state) not in ("0", "1"):
             continue
 
@@ -99,24 +108,14 @@ def get_ticker(symbol: str) -> Dict[str, Any]:
     return {}
 
 
-def get_klines(symbol: str, interval: str = "15m", limit: int = 200) -> List[List[float]]:
+def get_klines(symbol: str, interval: str = "15m", limit: int = 200) -> List[Dict[str, float]]:
     mexc_symbol = normalize_symbol(symbol)
     mexc_interval = INTERVAL_MAP.get(str(interval), str(interval))
 
-    # MEXC futures kline start/end saniye bazlı çalışır.
     now = int(time.time())
-    seconds_map = {
-        "Min1": 60,
-        "Min5": 300,
-        "Min15": 900,
-        "Min30": 1800,
-        "Min60": 3600,
-        "Hour4": 14400,
-        "Day1": 86400,
-        "Week1": 604800,
-    }
-    step = seconds_map.get(mexc_interval, 900)
-    start = now - (step * max(int(limit), 50))
+    step = SECONDS_MAP.get(mexc_interval, 900)
+    requested_limit = max(int(limit), 1)
+    start = now - (step * max(requested_limit, 50))
 
     data = _get(
         f"/api/v1/contract/kline/{mexc_symbol}",
@@ -137,34 +136,35 @@ def get_klines(symbol: str, interval: str = "15m", limit: int = 200) -> List[Lis
     highs = payload.get("high") or []
     lows = payload.get("low") or []
     closes = payload.get("close") or []
-    vols = payload.get("vol") or payload.get("volume") or []
+    volumes = payload.get("vol") or payload.get("volume") or []
 
-    size = min(len(times), len(opens), len(highs), len(lows), len(closes), len(vols))
-    rows: List[List[float]] = []
+    size = min(len(times), len(opens), len(highs), len(lows), len(closes), len(volumes))
+    rows: List[Dict[str, float]] = []
 
     for i in range(size):
         try:
-            ts = float(times[i]) * 1000.0
+            open_time = float(times[i]) * 1000.0
+            close_time = open_time + (step * 1000.0) - 1.0
             rows.append({
-                "open_time": ts,
-                "close_time": ts,
-                "time": ts,
+                "open_time": open_time,
+                "close_time": close_time,
+                "time": open_time,
                 "open": float(opens[i]),
                 "high": float(highs[i]),
                 "low": float(lows[i]),
                 "close": float(closes[i]),
-                "volume": float(vols[i]),
+                "volume": float(volumes[i]),
             })
         except Exception:
             continue
 
-    return rows[-int(limit):]
+    return rows[-requested_limit:]
 
 
-# Eski kod farklı isimler çağırıyorsa kırılmasın diye aliaslar
 fetch_symbols = get_symbols
 fetch_ticker = get_ticker
 fetch_klines = get_klines
+
 
 # Backward compatibility for existing scanner.py
 def get_valid_futures_symbols():
