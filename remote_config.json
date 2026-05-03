@@ -26,30 +26,11 @@
   "watchlist": {
     "symbols": [
       "BTCUSDT",
-      "ETHUSDT",
-      "AAPLUSDT",
-      "TSLAUSDT",
-      "AMZNUSDT",
-      "METAUSDT",
-      "MSFTUSDT",
-      "XAUUSDT",
-      "XAGUSDT"
+      "ETHUSDT"
     ],
     "watched_symbols": [
       "BTCUSDT",
-      "ETHUSDT",
-      "LINKUSDT",
-      "AVAXUSDT",
-      "XRPUSDT",
-      "AAPLUSDT",
-      "TSLAUSDT",
-      "AMZNUSDT",
-      "METAUSDT",
-      "MSFTUSDT",
-      "XAUUSDT",
-      "XAGUSDT",
-      "SOLUSDT",
-      "BNBUSDT"
+      "ETHUSDT"
     ]
   },
   "notifications": {

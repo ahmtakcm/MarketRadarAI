@@ -1,125 +1,175 @@
 import logging
 import time
+from typing import Any, Dict, List, Optional
 
 import requests
 
-from config import BINANCE_FAPI_BASE
+MEXC_BASE = "https://contract.mexc.com"
+
+INTERVAL_MAP = {
+    "1m": "Min1",
+    "3m": "Min5",      # MEXC futures tarafında Min3 yok; güvenli fallback
+    "5m": "Min5",
+    "15m": "Min15",
+    "30m": "Min30",
+    "1h": "Min60",
+    "4h": "Hour4",
+    "1d": "Day1",
+    "1w": "Week1",
+}
+
+_session = requests.Session()
 
 
-def safe_get(url, params=None, timeout=20, retries=3, sleep_seconds=1.5):
-    last_error = None
-
-    for attempt in range(1, retries + 1):
-        try:
-            r = requests.get(url, params=params, timeout=timeout)
-
-            if r.status_code == 200:
-                return r
-
-            last_error = f"HTTP {r.status_code}: {r.text[:200]}"
-            logging.warning("Binance API başarısız deneme %s/%s | %s", attempt, retries, last_error)
-
-        except Exception as e:
-            last_error = str(e)
-            logging.warning("Binance API bağlantı hatası %s/%s | %s", attempt, retries, last_error)
-
-        if attempt < retries:
-            time.sleep(sleep_seconds)
-
-    logging.error("Binance API isteği başarısız oldu | url=%s | params=%s | hata=%s", url, params, last_error)
-    return None
+def _get(path: str, params: Optional[Dict[str, Any]] = None, timeout: int = 10) -> Dict[str, Any]:
+    url = f"{MEXC_BASE}{path}"
+    try:
+        r = _session.get(url, params=params or {}, timeout=timeout)
+        r.raise_for_status()
+        data = r.json()
+        if not isinstance(data, dict):
+            return {"success": False, "data": None, "message": "non-dict response"}
+        return data
+    except Exception as e:
+        logging.warning("MEXC GET hata | path=%s params=%s err=%s", path, params, e)
+        return {"success": False, "data": None, "message": str(e)}
 
 
-def get_valid_futures_symbols():
-    url = f"{BINANCE_FAPI_BASE}/fapi/v1/exchangeInfo"
-    r = safe_get(url, timeout=20, retries=3)
+def normalize_symbol(symbol: str) -> str:
+    s = str(symbol or "").upper().strip()
+    s = s.replace("-", "_").replace("/", "_")
 
-    if r is None:
-        return set()
+    if "_" in s:
+        return s
 
-    data = r.json()
+    if s.endswith("USDT"):
+        return s[:-4] + "_USDT"
 
-    valid_symbols = set()
-    for item in data.get("symbols", []):
-        symbol = item.get("symbol")
+    return s
 
-        if item.get("status") != "TRADING":
+
+def denormalize_symbol(symbol: str) -> str:
+    return str(symbol or "").upper().replace("_", "")
+
+
+def get_symbols() -> List[str]:
+    data = _get("/api/v1/contract/detail")
+    rows = data.get("data") if data.get("success") else None
+
+    if not isinstance(rows, list):
+        logging.warning("MEXC sembol listesi alınamadı")
+        return []
+
+    symbols: List[str] = []
+    for item in rows:
+        if not isinstance(item, dict):
             continue
+
+        symbol = item.get("symbol")
+        quote = item.get("quoteCoin")
+        state = item.get("state")
 
         if not symbol:
             continue
 
-        # Sadece temiz USDT futures çiftleri.
-        # USDC, tarihli kontratlar, unicode/garip semboller ve özel pairler elenir.
-        if not symbol.endswith("USDT"):
+        # USDT perpetual ağırlıklı tarama
+        if quote and str(quote).upper() != "USDT":
             continue
 
-        if not symbol.isascii() or not symbol.replace("USDT", "").isalnum():
+        # state yoksa eleme yapma; varsa aktif olmayanları dışla
+        if state is not None and str(state) not in ("0", "1"):
             continue
 
-        valid_symbols.add(symbol)
+        symbols.append(denormalize_symbol(symbol))
 
-    return valid_symbols
-
-
-def get_kline_limit(interval):
-    if interval == "1w":
-        return 300
-    if interval == "1d":
-        return 500
-    if interval == "1h":
-        return 750
-    if interval == "30m":
-        return 750
-    return 500
+    return sorted(set(symbols))
 
 
-def fetch_klines(symbol, interval, limit):
-    url = f"{BINANCE_FAPI_BASE}/fapi/v1/klines"
-    params = {
-        "symbol": symbol,
-        "interval": interval,
-        "limit": limit,
+def get_ticker(symbol: str) -> Dict[str, Any]:
+    mexc_symbol = normalize_symbol(symbol)
+    data = _get("/api/v1/contract/ticker", {"symbol": mexc_symbol})
+    payload = data.get("data") if data.get("success") else None
+
+    if isinstance(payload, dict):
+        return payload
+
+    if isinstance(payload, list) and payload:
+        return payload[0]
+
+    return {}
+
+
+def get_klines(symbol: str, interval: str = "15m", limit: int = 200) -> List[List[float]]:
+    mexc_symbol = normalize_symbol(symbol)
+    mexc_interval = INTERVAL_MAP.get(str(interval), str(interval))
+
+    # MEXC futures kline start/end saniye bazlı çalışır.
+    now = int(time.time())
+    seconds_map = {
+        "Min1": 60,
+        "Min5": 300,
+        "Min15": 900,
+        "Min30": 1800,
+        "Min60": 3600,
+        "Hour4": 14400,
+        "Day1": 86400,
+        "Week1": 604800,
     }
+    step = seconds_map.get(mexc_interval, 900)
+    start = now - (step * max(int(limit), 50))
 
-    r = safe_get(url, params=params, timeout=20, retries=3)
+    data = _get(
+        f"/api/v1/contract/kline/{mexc_symbol}",
+        {
+            "interval": mexc_interval,
+            "start": start,
+            "end": now,
+        },
+    )
 
-    if r is None:
-        return None
+    payload = data.get("data") if data.get("success") else None
+    if not isinstance(payload, dict):
+        logging.warning("MEXC kline veri yok | %s %s", symbol, interval)
+        return []
 
-    try:
-        data = r.json()
-    except Exception as e:
-        logging.warning("Kline JSON parse hatası | %s %s | %s", symbol, interval, e)
-        return None
+    times = payload.get("time") or []
+    opens = payload.get("open") or []
+    highs = payload.get("high") or []
+    lows = payload.get("low") or []
+    closes = payload.get("close") or []
+    vols = payload.get("vol") or payload.get("volume") or []
 
-    if not isinstance(data, list) or len(data) < 60:
-        logging.warning("Kline veri yetersiz | %s %s | len=%s", symbol, interval, len(data) if isinstance(data, list) else "invalid")
-        return None
+    size = min(len(times), len(opens), len(highs), len(lows), len(closes), len(vols))
+    rows: List[List[float]] = []
 
-    # Son satır çoğu zaman açık mumdur; kapalı mumları kullan.
-    closed_rows = data[:-1]
-    if len(closed_rows) < 50:
-        logging.warning("Kapalı mum sayısı yetersiz | %s %s | len=%s", symbol, interval, len(closed_rows))
-        return None
-
-    candles = []
-    for row in closed_rows:
+    for i in range(size):
         try:
-            candles.append({
-                "open_time": int(row[0]),
-                "open": float(row[1]),
-                "high": float(row[2]),
-                "low": float(row[3]),
-                "close": float(row[4]),
-                "volume": float(row[5]),
-                "close_time": int(row[6]),
+            ts = float(times[i]) * 1000.0
+            rows.append({
+                "open_time": ts,
+                "close_time": ts,
+                "time": ts,
+                "open": float(opens[i]),
+                "high": float(highs[i]),
+                "low": float(lows[i]),
+                "close": float(closes[i]),
+                "volume": float(vols[i]),
             })
-        except Exception as e:
-            logging.warning("Kline satırı parse edilemedi | %s %s | %s", symbol, interval, e)
+        except Exception:
             continue
 
-    if len(candles) < 50:
-        return None
+    return rows[-int(limit):]
 
-    return candles
+
+# Eski kod farklı isimler çağırıyorsa kırılmasın diye aliaslar
+fetch_symbols = get_symbols
+fetch_ticker = get_ticker
+fetch_klines = get_klines
+
+# Backward compatibility for existing scanner.py
+def get_valid_futures_symbols():
+    return get_symbols()
+
+
+def get_kline_limit(tf=None, *args, **kwargs):
+    return 200

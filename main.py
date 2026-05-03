@@ -291,7 +291,7 @@ def sleep_with_command_polling(seconds):
 
     while time.time() < end_time:
         try:
-            poll_telegram_commands(send_telegram)
+            pass  # telegram polling disabled
             cfg = load_config()
             if cfg.get("runtime", {}).get("force_scan_once"):
                 logging.info("/scan_now bayrağı görüldü; uyku erken kesiliyor")
@@ -311,7 +311,7 @@ def _telegram_command_thread_loop():
     logging.info("Telegram komut thread'i başladı")
     while True:
         try:
-            poll_telegram_commands(send_telegram)
+            pass  # telegram polling disabled
         except Exception as e:
             logging.exception("Telegram komut thread hatası: %s", e)
         time.sleep(1.5)
@@ -341,7 +341,7 @@ def main():
         },
     )
 
-    start_telegram_command_thread()
+    # start_telegram_command_thread()  # disabled: tek Telegram polling ana döngüde yapılacak
     discovered_symbols, symbol_degraded, last_symbol_refresh = load_symbols_resilient()
     last_degraded_notice = time.time() if symbol_degraded else 0
 
@@ -353,7 +353,7 @@ def main():
             consume_force_scan_request()
             # Telegram komutlarını ana bot içinde oku.
             # Ayrı telegram_remote.py çalıştırılmayacak.
-            poll_telegram_commands(send_telegram)
+            pass  # telegram polling disabled
 
             discovered_symbols, symbol_degraded, last_symbol_refresh, last_degraded_notice = maybe_refresh_symbols(
                 discovered_symbols,
