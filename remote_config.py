@@ -34,12 +34,16 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "max_same_symbol_per_day": 3,
     },
     "watchlist": {
-        "symbols": [],
-        "watched_symbols": [],
+        "symbols": ["BTCUSDT", "ETHUSDT"],
+        "watched_symbols": ["BTCUSDT", "ETHUSDT"],
     },
     "notifications": {
         "quiet_mode": False,
         "notify_only": "all",
+    },
+    "telegram": {
+        "commands_enabled": False,
+        "polling_enabled": False,
     },
     "update": {
         "pending_zip": None,
@@ -48,7 +52,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "runtime": {
         "last_restart_request": None,
         "last_update_apply": None,
-        "force_scan_once": False
+        "force_scan_once": False,
     },
 }
 
@@ -69,7 +73,6 @@ def load_config() -> Dict[str, Any]:
         return dict(DEFAULT_CONFIG)
 
     try:
-        # utf-8-sig: PowerShell/Notepad BOM sorununu güvenli çözer.
         with CONFIG_PATH.open("r", encoding="utf-8-sig") as f:
             data = json.load(f)
     except Exception:
