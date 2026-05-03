@@ -1,0 +1,9 @@
+/home/ahmtakcm/mexc-tarama-bot/storage/mexc.out
+/home/ahmtakcm/mexc-tarama-bot/storage/mexc.err {
+    daily
+    rotate 7
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
