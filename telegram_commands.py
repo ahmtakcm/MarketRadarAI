@@ -130,6 +130,17 @@ def _split_chat_ids(value):
     return result
 
 
+def _dedupe_ids(values):
+    result = []
+    seen = set()
+    for value in values:
+        item = str(value or "").strip()
+        if item and item not in seen:
+            result.append(item)
+            seen.add(item)
+    return result
+
+
 def _allowed_chat_ids(cfg):
     telegram_cfg = cfg.get("telegram", {})
     ids = []
@@ -138,14 +149,22 @@ def _allowed_chat_ids(cfg):
     ids.extend(_split_chat_ids(telegram_cfg.get("allowed_chat_ids")))
     ids.extend(_split_chat_ids(telegram_cfg.get("admin_chat_id")))
     ids.extend(_split_chat_ids(telegram_cfg.get("notification_chat_id")))
+    return _dedupe_ids(ids)
 
-    result = []
-    seen = set()
-    for chat_id in ids:
-        if chat_id and chat_id not in seen:
-            result.append(chat_id)
-            seen.add(chat_id)
-    return result
+
+def _admin_user_ids(cfg):
+    telegram_cfg = cfg.get("telegram", {})
+    ids = []
+    ids.extend(_split_chat_ids(telegram_cfg.get("admin_user_ids")))
+    ids.extend(get_telegram_admin_chat_ids())
+    ids.extend(_split_chat_ids(telegram_cfg.get("admin_chat_ids")))
+    ids.extend(_split_chat_ids(telegram_cfg.get("allowed_chat_ids")))
+    ids.extend(_split_chat_ids(telegram_cfg.get("admin_chat_id")))
+    return [item for item in _dedupe_ids(ids) if not item.startswith("-")]
+
+
+def _sender_id(message) -> str:
+    return str(message.get("from", {}).get("id", "")).strip()
 
 
 def _is_private_chat(chat_id: str) -> bool:
@@ -203,6 +222,23 @@ def _send_text(send_telegram, chat_id: str, text: str):
         send_telegram(chunk, chat_id=chat_id)
 
 
+def _send_private_admin_result(send_telegram, command_chat_id: str, admin_user_id: str, text: str):
+    try:
+        _send_text(send_telegram, admin_user_id, text)
+        return
+    except Exception as exc:
+        logging.exception("Admin cevabi ozel sohbete gonderilemedi: %s", exc)
+
+    if command_chat_id != admin_user_id:
+        _send_text(
+            send_telegram,
+            command_chat_id,
+            "Admin islemi uygulandi; ancak ozel cevap gonderilemedi. Botla ozelden /start yazip tekrar dene.",
+        )
+    else:
+        raise RuntimeError("Admin cevabi gonderilemedi")
+
+
 def _watchlist_status_text(cfg):
     symbols = _safe_symbols(cfg.get("watchlist", {}).get("symbols", []))
     if not symbols:
@@ -224,7 +260,7 @@ def _help_text():
             continue
         lines.append(f"{command} - {description}")
     lines.append("")
-    lines.append("ADMIN komutlari sadece ozel admin sohbetinden calisir.")
+    lines.append("ADMIN komutlari gruptan yazilabilir; sonuc yetkili adminin ozel sohbetine gider.")
     return "\n".join(lines)
 
 
@@ -455,12 +491,20 @@ def handle_command_message(message, send_telegram):
 
     cmd = _command_name(text)
     args = _command_args(text)
+    sender_id = _sender_id(message)
 
     if cmd in PRIVATE_ADMIN_COMMANDS:
-        if not _is_private_chat(chat_id):
-            _send_text(send_telegram, chat_id, "Bu komut sadece ozel admin sohbetinden calisir.")
+        if _is_private_chat(chat_id):
+            _send_text(send_telegram, chat_id, _handle_private_admin_command(cmd, args, cfg))
             return
-        _send_text(send_telegram, chat_id, _handle_private_admin_command(cmd, args, cfg))
+
+        if sender_id not in _admin_user_ids(cfg):
+            logging.warning("Yetkisiz grup admin komutu reddedildi: chat_id=%s sender_id=%s cmd=%s", chat_id, sender_id, cmd)
+            _send_text(send_telegram, chat_id, "Bu admin komutu icin yetkin yok.")
+            return
+
+        result = _handle_private_admin_command(cmd, args, cfg)
+        _send_private_admin_result(send_telegram, chat_id, sender_id, result)
         return
 
     if cmd in {"/ping", "/start"}:
