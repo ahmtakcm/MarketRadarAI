@@ -5,12 +5,15 @@ import socket
 import time
 from pathlib import Path
 
-from config import APP_LOG_PATH, REQUESTED_SYMBOLS
+from logging.handlers import RotatingFileHandler
+
+from config import APP_LOG_PATH
 from core.state_store import load_state, save_state
 from core.scanner import build_signal_message, get_daily_commentaries
 from core.performance_tracker import finalize_pending_signals
-from core.exchange_client import fetch_klines, get_kline_limit, validate_futures_symbol
+from core.exchange_client import fetch_klines, get_kline_limit
 from core.scheduler import next_sleep_seconds
+from core.symbol_runtime import DEFAULT_SYMBOLS, configured_scan_symbols, validate_scan_symbols
 from notifiers.telegram_notifier import send_telegram
 
 from remote_config import load_config, save_config
@@ -24,16 +27,19 @@ STARTUP_SYMBOL_ATTEMPTS = 3
 STARTUP_SYMBOL_RETRY_SECONDS = 10
 SYMBOL_REFRESH_SECONDS = 300
 DEGRADED_REMINDER_SECONDS = 1800
-DEFAULT_SYMBOLS = ["BTCUSDT", "ETHUSDT"]
 
 
 LOG_LEVEL = os.getenv("MEXC_LOG_LEVEL", "INFO").upper()
 LOG_LEVEL_VALUE = getattr(logging, LOG_LEVEL, logging.INFO)
 
+APP_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
-    filename=APP_LOG_PATH,
     level=LOG_LEVEL_VALUE,
-    format="%(asctime)s | %(levelname)s | %(message)s"
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    handlers=[
+        RotatingFileHandler(APP_LOG_PATH, maxBytes=5_000_000, backupCount=5, encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
 )
 
 
@@ -64,49 +70,6 @@ def _send_lifecycle(title, fields=None):
         send_telegram(text)
     except Exception as e:
         logging.warning("Lifecycle Telegram mesaji gonderilemedi: %s", e)
-
-
-def _safe_symbols(values):
-    result = []
-    seen = set()
-    for value in values or []:
-        sym = str(value or "").upper().strip()
-        if sym and sym not in seen:
-            result.append(sym)
-            seen.add(sym)
-    return result
-
-
-def configured_scan_symbols():
-    cfg = load_config()
-    symbols = _safe_symbols(cfg.get("watchlist", {}).get("symbols", []))
-    source = "remote_config.watchlist.symbols"
-
-    if not symbols:
-        symbols = _safe_symbols(REQUESTED_SYMBOLS)
-        source = "settings.json symbols"
-
-    if not symbols:
-        symbols = list(DEFAULT_SYMBOLS)
-        source = "hardcoded fallback"
-
-    logging.info("Watchlist sembolleri: %s | kaynak=%s", ", ".join(symbols), source)
-    return symbols, source
-
-
-def validate_scan_symbols(symbols, tf="15m", min_candles=30):
-    valid = []
-    invalid = []
-
-    for symbol in _safe_symbols(symbols):
-        ok, reason = validate_futures_symbol(symbol, tf=tf, min_candles=min_candles)
-        if ok:
-            valid.append(symbol)
-        else:
-            invalid.append((symbol, reason))
-            logging.warning("Watchlist sembolu gecersiz; atlandi | %s | %s", symbol, reason)
-
-    return valid, invalid
 
 
 def load_symbols_resilient():
