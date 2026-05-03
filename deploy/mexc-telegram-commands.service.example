@@ -1,0 +1,18 @@
+[Unit]
+Description=MEXC Telegram Commands Poller
+After=network-online.target mexc-tarama-bot.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ahmtakcm
+WorkingDirectory=/home/ahmtakcm/mexc-tarama-bot
+Environment=TELEGRAM_COMMANDS_ENABLED=1
+ExecStart=/home/ahmtakcm/mexc-tarama-bot/venv/bin/python -u /home/ahmtakcm/mexc-tarama-bot/telegram_remote.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/ahmtakcm/mexc-tarama-bot/storage/telegram_commands.out
+StandardError=append:/home/ahmtakcm/mexc-tarama-bot/storage/telegram_commands.err
+
+[Install]
+WantedBy=multi-user.target
