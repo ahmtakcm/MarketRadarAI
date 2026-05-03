@@ -43,11 +43,51 @@ SUPPORTED_COMMANDS = {
     "/log": "Son uygulama loglarini goster",
     "/error_log": "Son hata/uyari loglarini goster",
     "/botfather_commands": "BotFather menu komutlarini goster",
+    "/start_bot": "ADMIN: Botu aktif et",
+    "/stop_bot": "ADMIN: Botu pasife al",
+    "/quiet_on": "ADMIN: Sessiz modu ac",
+    "/quiet_off": "ADMIN: Sessiz modu kapat",
+    "/kill_switch_on": "ADMIN: Acil sinyal kesmeyi ac",
+    "/kill_switch_off": "ADMIN: Acil sinyal kesmeyi kapat",
+    "/scalp_on": "ADMIN: Scalp modunu ac",
+    "/scalp_off": "ADMIN: Scalp modunu kapat",
+    "/intraday_on": "ADMIN: Intraday modunu ac",
+    "/intraday_off": "ADMIN: Intraday modunu kapat",
+    "/midterm_on": "ADMIN: Midterm modunu ac",
+    "/midterm_off": "ADMIN: Midterm modunu kapat",
+    "/mode_only": "ADMIN: Tek mod sec veya off yap",
+    "/fake_filter_on": "ADMIN: Fake breakout filtresini ac",
+    "/fake_filter_off": "ADMIN: Fake breakout filtresini kapat",
+    "/volume_filter_on": "ADMIN: Hacim filtresini ac",
+    "/volume_filter_off": "ADMIN: Hacim filtresini kapat",
+    "/explain_on": "ADMIN: Sinyal aciklamalarini ac",
+    "/explain_off": "ADMIN: Sinyal aciklamalarini kapat",
 }
 
 ADD_SYMBOL_COMMANDS = {"/addsymbol", "/add_symbol", "/watch"}
 REMOVE_SYMBOL_COMMANDS = {"/removesymbol", "/remove_symbol", "/unwatch"}
 WATCHLIST_COMMANDS = {"/symbols", "/watchlist"}
+PRIVATE_ADMIN_COMMANDS = {
+    "/start_bot",
+    "/stop_bot",
+    "/quiet_on",
+    "/quiet_off",
+    "/kill_switch_on",
+    "/kill_switch_off",
+    "/scalp_on",
+    "/scalp_off",
+    "/intraday_on",
+    "/intraday_off",
+    "/midterm_on",
+    "/midterm_off",
+    "/mode_only",
+    "/fake_filter_on",
+    "/fake_filter_off",
+    "/volume_filter_on",
+    "/volume_filter_off",
+    "/explain_on",
+    "/explain_off",
+}
 
 
 def telegram_polling_enabled() -> bool:
@@ -106,6 +146,10 @@ def _allowed_chat_ids(cfg):
             result.append(chat_id)
             seen.add(chat_id)
     return result
+
+
+def _is_private_chat(chat_id: str) -> bool:
+    return bool(str(chat_id or "").strip()) and not str(chat_id).startswith("-")
 
 
 def _load_last_update_id() -> int:
@@ -179,6 +223,8 @@ def _help_text():
         if command == "/start":
             continue
         lines.append(f"{command} - {description}")
+    lines.append("")
+    lines.append("ADMIN komutlari sadece ozel admin sohbetinden calisir.")
     return "\n".join(lines)
 
 
@@ -186,6 +232,7 @@ def _status_text(cfg):
     active = "aktif" if cfg.get("bot_active", True) else "pasif"
     kill_switch = "acik" if cfg.get("kill_switch", False) else "kapali"
     quiet = "acik" if cfg.get("notifications", {}).get("quiet_mode", False) else "kapali"
+    explain = "acik" if cfg.get("explain_signals", True) else "kapali"
     watchlist = _safe_symbols(cfg.get("watchlist", {}).get("symbols", []))
     modes = get_active_modes(cfg)
     return (
@@ -193,6 +240,7 @@ def _status_text(cfg):
         f"Bot: {active}\n"
         f"Kill switch: {kill_switch}\n"
         f"Quiet mode: {quiet}\n"
+        f"Explain signals: {explain}\n"
         f"Aktif modlar: {', '.join(modes) or 'yok'}\n"
         f"Watchlist: {', '.join(watchlist) or 'bos'}"
     )
@@ -302,6 +350,97 @@ def _remove_symbol(cfg, symbol: str) -> str:
     return f"Sembol watchlist'ten silindi: {symbol}"
 
 
+def _set_bot_active(cfg, enabled: bool) -> str:
+    cfg["bot_active"] = bool(enabled)
+    save_config(cfg)
+    return f"Bot {'aktif' if enabled else 'pasif'} moda alindi."
+
+
+def _set_quiet_mode(cfg, enabled: bool) -> str:
+    cfg.setdefault("notifications", {})["quiet_mode"] = bool(enabled)
+    save_config(cfg)
+    return f"Quiet mode {'acildi' if enabled else 'kapatildi'}."
+
+
+def _set_kill_switch(cfg, enabled: bool) -> str:
+    cfg["kill_switch"] = bool(enabled)
+    save_config(cfg)
+    return f"Kill switch {'acildi' if enabled else 'kapatildi'}."
+
+
+def _set_mode(cfg, mode: str, enabled: bool) -> str:
+    cfg.setdefault("modes", {})[mode] = bool(enabled)
+    save_config(cfg)
+    return f"{mode} modu {'acildi' if enabled else 'kapatildi'}.\n\n" + _modes_text(cfg)
+
+
+def _set_mode_only(cfg, args: list[str]) -> str:
+    if not args:
+        return "Kullanim: /mode_only off|scalp|intraday|midterm"
+
+    value = str(args[0]).lower().strip()
+    if value not in {"off", "scalp", "intraday", "midterm"}:
+        return "Gecersiz mode_only. Kullanim: /mode_only off|scalp|intraday|midterm"
+
+    cfg["mode_only"] = None if value == "off" else value
+    save_config(cfg)
+    return "Mode-only guncellendi.\n\n" + _modes_text(cfg)
+
+
+def _set_filter(cfg, key: str, enabled: bool) -> str:
+    cfg.setdefault("filters", {})[key] = bool(enabled)
+    save_config(cfg)
+    return f"{key} {'acildi' if enabled else 'kapatildi'}.\n\n" + _filters_text(cfg)
+
+
+def _set_explain_signals(cfg, enabled: bool) -> str:
+    cfg["explain_signals"] = bool(enabled)
+    save_config(cfg)
+    return f"Sinyal aciklamalari {'acildi' if enabled else 'kapatildi'}."
+
+
+def _handle_private_admin_command(cmd: str, args: list[str], cfg) -> str:
+    if cmd == "/start_bot":
+        return _set_bot_active(cfg, True)
+    if cmd == "/stop_bot":
+        return _set_bot_active(cfg, False)
+    if cmd == "/quiet_on":
+        return _set_quiet_mode(cfg, True)
+    if cmd == "/quiet_off":
+        return _set_quiet_mode(cfg, False)
+    if cmd == "/kill_switch_on":
+        return _set_kill_switch(cfg, True)
+    if cmd == "/kill_switch_off":
+        return _set_kill_switch(cfg, False)
+    if cmd == "/scalp_on":
+        return _set_mode(cfg, "scalp", True)
+    if cmd == "/scalp_off":
+        return _set_mode(cfg, "scalp", False)
+    if cmd == "/intraday_on":
+        return _set_mode(cfg, "intraday", True)
+    if cmd == "/intraday_off":
+        return _set_mode(cfg, "intraday", False)
+    if cmd == "/midterm_on":
+        return _set_mode(cfg, "midterm", True)
+    if cmd == "/midterm_off":
+        return _set_mode(cfg, "midterm", False)
+    if cmd == "/mode_only":
+        return _set_mode_only(cfg, args)
+    if cmd == "/fake_filter_on":
+        return _set_filter(cfg, "fake_breakout_filter", True)
+    if cmd == "/fake_filter_off":
+        return _set_filter(cfg, "fake_breakout_filter", False)
+    if cmd == "/volume_filter_on":
+        return _set_filter(cfg, "volume_confirmation", True)
+    if cmd == "/volume_filter_off":
+        return _set_filter(cfg, "volume_confirmation", False)
+    if cmd == "/explain_on":
+        return _set_explain_signals(cfg, True)
+    if cmd == "/explain_off":
+        return _set_explain_signals(cfg, False)
+    return "Desteklenmeyen admin komutu."
+
+
 def handle_command_message(message, send_telegram):
     chat_id = str(message.get("chat", {}).get("id", ""))
     text = str(message.get("text", "")).strip()
@@ -316,6 +455,13 @@ def handle_command_message(message, send_telegram):
 
     cmd = _command_name(text)
     args = _command_args(text)
+
+    if cmd in PRIVATE_ADMIN_COMMANDS:
+        if not _is_private_chat(chat_id):
+            _send_text(send_telegram, chat_id, "Bu komut sadece ozel admin sohbetinden calisir.")
+            return
+        _send_text(send_telegram, chat_id, _handle_private_admin_command(cmd, args, cfg))
+        return
 
     if cmd in {"/ping", "/start"}:
         _send_text(send_telegram, chat_id, "pong" if cmd == "/ping" else _help_text())
