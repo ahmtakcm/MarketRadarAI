@@ -8,6 +8,7 @@ from pathlib import Path
 import requests
 
 from config import get_telegram_credentials
+from core.exchange_client import validate_futures_symbol
 from remote_config import load_config, save_config
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -66,6 +67,31 @@ def _tg(method: str, **data):
     return response.json()
 
 
+def _safe_symbols(values):
+    result = []
+    seen = set()
+    for value in values or []:
+        symbol = str(value or "").upper().strip()
+        if symbol and symbol not in seen:
+            result.append(symbol)
+            seen.add(symbol)
+    return result
+
+
+def _watchlist_status_text(cfg):
+    symbols = _safe_symbols(cfg.get("watchlist", {}).get("symbols", []))
+    if not symbols:
+        return "Watchlist bos."
+
+    lines = ["WATCHLIST", ""]
+    for symbol in symbols:
+        ok, reason = validate_futures_symbol(symbol)
+        status = "valid" if ok else f"invalid: {reason}"
+        lines.append(f"{symbol}: {status}")
+
+    return "\n".join(lines)
+
+
 def handle_command_message(message, send_telegram):
     chat_id = str(message.get("chat", {}).get("id", ""))
     allowed_chat_id = _allowed_chat_id()
@@ -97,13 +123,42 @@ def handle_command_message(message, send_telegram):
         )
         return
 
+    if cmd in {"/symbols", "/watchlist"}:
+        send_telegram(_watchlist_status_text(cfg))
+        return
+
+    if cmd in {"/addsymbol", "/add_symbol"}:
+        parts = text.split()
+        if len(parts) < 2:
+            send_telegram("Kullanim: /addsymbol BTCUSDT")
+            return
+
+        symbol = str(parts[1]).upper().strip()
+        ok, reason = validate_futures_symbol(symbol)
+        if not ok:
+            send_telegram(f"Sembol eklenmedi: {symbol}\nNeden: {reason}")
+            return
+
+        watchlist = cfg.setdefault("watchlist", {}).setdefault("symbols", [])
+        existing = _safe_symbols(watchlist)
+        if symbol in existing:
+            send_telegram(f"Sembol zaten watchlist icinde: {symbol}")
+            return
+
+        existing.append(symbol)
+        cfg["watchlist"]["symbols"] = existing
+        cfg["watchlist"]["watched_symbols"] = existing
+        save_config(cfg)
+        send_telegram(f"Sembol watchlist'e eklendi: {symbol}")
+        return
+
     if cmd == "/scan_now":
         cfg.setdefault("runtime", {})["force_scan_once"] = True
         save_config(cfg)
         send_telegram("Manuel tarama istegi alindi.")
         return
 
-    send_telegram("Komut sistemi su an kisitli modda. Desteklenen komutlar: /status /scan_now /ping")
+    send_telegram("Komut sistemi su an kisitli modda. Desteklenen komutlar: /status /watchlist /addsymbol /scan_now /ping")
 
 
 def poll_telegram_commands(send_telegram):
