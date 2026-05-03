@@ -19,3 +19,22 @@ filters - Filtre ayarlarini goster
 log - Son uygulama loglarini goster
 error_log - Son hata/uyari loglarini goster
 botfather_commands - BotFather menu komutlarini goster
+start_bot - ADMIN: Botu aktif et
+stop_bot - ADMIN: Botu pasife al
+quiet_on - ADMIN: Sessiz modu ac
+quiet_off - ADMIN: Sessiz modu kapat
+kill_switch_on - ADMIN: Acil sinyal kesmeyi ac
+kill_switch_off - ADMIN: Acil sinyal kesmeyi kapat
+scalp_on - ADMIN: Scalp modunu ac
+scalp_off - ADMIN: Scalp modunu kapat
+intraday_on - ADMIN: Intraday modunu ac
+intraday_off - ADMIN: Intraday modunu kapat
+midterm_on - ADMIN: Midterm modunu ac
+midterm_off - ADMIN: Midterm modunu kapat
+mode_only - ADMIN: Tek mod sec veya off yap
+fake_filter_on - ADMIN: Fake breakout filtresini ac
+fake_filter_off - ADMIN: Fake breakout filtresini kapat
+volume_filter_on - ADMIN: Hacim filtresini ac
+volume_filter_off - ADMIN: Hacim filtresini kapat
+explain_on - ADMIN: Sinyal aciklamalarini ac
+explain_off - ADMIN: Sinyal aciklamalarini kapat
