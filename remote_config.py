@@ -37,13 +37,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "symbols": ["BTCUSDT", "ETHUSDT"],
         "watched_symbols": ["BTCUSDT", "ETHUSDT"],
     },
-    "symbol_expansion": {
-        "enabled": True,
-        "max_symbols": 10,
-        "min_24h_volume": 0,
-        "include_watchlist": True,
-        "exclude_symbols": [],
-    },
     "notifications": {
         "quiet_mode": False,
         "notify_only": "all",
