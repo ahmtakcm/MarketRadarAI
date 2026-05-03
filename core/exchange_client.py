@@ -153,6 +153,24 @@ def get_ranked_futures_symbols(limit: int = 20, min_24h_volume: float = 0) -> Li
     return ranked[:max(int(limit), 0)]
 
 
+def validate_futures_symbol(symbol: str, tf: str = "15m", min_candles: int = 30):
+    normalized = normalize_symbol(symbol)
+    plain_symbol = denormalize_symbol(normalized)
+
+    if not plain_symbol.endswith("USDT"):
+        return False, "only USDT futures symbols are supported"
+
+    ticker = get_ticker(plain_symbol)
+    if not ticker:
+        return False, "ticker not found"
+
+    candles = fetch_klines(plain_symbol, tf, min_candles)
+    if len(candles) < int(min_candles):
+        return False, f"not enough candles: {len(candles)}/{min_candles}"
+
+    return True, "ok"
+
+
 def get_klines(symbol: str, interval: str = "15m", limit: int = 200) -> List[Dict[str, float]]:
     mexc_symbol = normalize_symbol(symbol)
     mexc_interval = INTERVAL_MAP.get(str(interval), str(interval))
