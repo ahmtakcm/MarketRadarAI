@@ -10,7 +10,7 @@ from config import APP_LOG_PATH, REQUESTED_SYMBOLS
 from core.state_store import load_state, save_state
 from core.scanner import get_active_symbols, build_signal_message, get_daily_commentaries
 from core.performance_tracker import finalize_pending_signals
-from core.exchange_client import fetch_klines, get_kline_limit
+from core.exchange_client import fetch_klines, get_kline_limit, get_ranked_futures_symbols
 from core.scheduler import next_sleep_seconds
 from notifiers.telegram_notifier import send_telegram
 
@@ -251,21 +251,52 @@ def consume_force_scan_request():
     return False
 
 
-def apply_watchlist_filter(discovered_symbols):
+def apply_symbol_selection(discovered_symbols):
     cfg = load_config()
     wanted = _safe_symbols(cfg.get("watchlist", {}).get("symbols", []))
+    expansion = cfg.get("symbol_expansion", {})
+    expansion_enabled = bool(expansion.get("enabled", False))
+    max_symbols = max(int(expansion.get("max_symbols", len(wanted) or 0) or 0), 0)
+    min_24h_volume = float(expansion.get("min_24h_volume", 0) or 0)
+    include_watchlist = bool(expansion.get("include_watchlist", True))
+    exclude_symbols = set(_safe_symbols(expansion.get("exclude_symbols", [])))
 
-    if not wanted:
+    if not wanted and not expansion_enabled:
         logging.warning("Watchlist bos; tarama yapilmayacak.")
         return []
 
     discovered = set(_safe_symbols(discovered_symbols))
-    selected = [s for s in wanted if s in discovered]
+    selected = []
+    if include_watchlist:
+        selected = [s for s in wanted if s in discovered and s not in exclude_symbols]
 
     missing = [s for s in wanted if s not in discovered]
     if missing:
         logging.warning("Watchlist icinde borsada dogrulanamayan semboller var: %s", ", ".join(missing))
 
+    if expansion_enabled and max_symbols > len(selected):
+        try:
+            ranked = get_ranked_futures_symbols(max_symbols * 3, min_24h_volume=min_24h_volume)
+        except Exception as e:
+            logging.exception("MEXC sembol genisletme listesi alinamadi: %s", e)
+            ranked = []
+
+        for symbol in _safe_symbols(ranked):
+            if symbol in selected or symbol in exclude_symbols or symbol not in discovered:
+                continue
+            selected.append(symbol)
+            if len(selected) >= max_symbols:
+                break
+
+    if max_symbols:
+        selected = selected[:max_symbols]
+
+    logging.info(
+        "Sembol secimi tamamlandi | watchlist=%s | expansion=%s | selected=%s",
+        len(wanted),
+        expansion_enabled,
+        len(selected),
+    )
     return selected
 
 
@@ -287,7 +318,7 @@ def main():
     discovered_symbols, symbol_degraded, last_symbol_refresh = load_symbols_resilient()
     last_degraded_notice = time.time() if symbol_degraded else 0
 
-    symbols = apply_watchlist_filter(discovered_symbols)
+    symbols = apply_symbol_selection(discovered_symbols)
     logging.info("Tarama sembolleri: %s", ", ".join(symbols))
 
     while True:
@@ -301,7 +332,7 @@ def main():
                 last_degraded_notice,
             )
 
-            symbols = apply_watchlist_filter(discovered_symbols)
+            symbols = apply_symbol_selection(discovered_symbols)
 
             if bot_allowed_to_scan():
                 signal_message = build_signal_message(symbols, state)
