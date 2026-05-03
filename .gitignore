@@ -1,0 +1,29 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+logs/
+storage/*.log
+storage/*.out
+storage/*.err
+.env
+telegram_offset.txt
+*.bak*
+*_backup*
+*.tar.gz
+# local config
+settings.json
+
+# temp / debug
+mexc_current_symbols.txt
+
+# old backups
+*_before_*
+
+# data klasörü
+data/
+
+# runtime state
+storage/alarm_bot.lock
+storage/last_active_symbols.json

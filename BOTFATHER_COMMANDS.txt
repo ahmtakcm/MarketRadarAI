@@ -1,0 +1,53 @@
+status - Bot durumunu göster
+ping - Bağlantı testi
+health - Sistem sağlık durumu
+scan_now - Hemen tarama yap
+scan_interval - Tarama aralığını göster
+set_interval - Tarama aralığını ayarla
+speed - Hız profili seç
+start_bot - Botu aktif et
+stop_bot - Sinyal üretimini durdur
+restart - Botu yeniden başlat
+kill_switch_on - Acil sinyal kes
+kill_switch_off - Acil kesmeyi kapat
+scalp_on - Scalp modu aç
+scalp_off - Scalp modu kapat
+intraday_on - Intraday modu aç
+intraday_off - Intraday modu kapat
+midterm_on - Midterm modu aç
+midterm_off - Midterm modu kapat
+mode_only - Tek mod seç
+modes - Modları göster
+risk - Risk seviyesi ayarla
+filters - Filtreleri göster
+fake_filter_on - Fake breakout filtresi aç
+fake_filter_off - Fake breakout filtresi kapat
+volume_filter_on - Hacim filtresi aç
+volume_filter_off - Hacim filtresi kapat
+set_min_rr - Minimum risk/ödül
+set_cooldown - Genel cooldown
+set_cooldown_symbol - Coin bazlı cooldown
+set_max_signals - Maks sinyal
+set_max_same_symbol - Aynı coin limiti
+watchlist - Aktif semboller
+symbols - Sembol durumunu göster
+add_symbol - Sembol ekle
+remove_symbol - Sembol sil
+watch - Takibe al
+unwatch - Takibi kaldır
+explain_on - Açıklamaları aç
+explain_off - Açıklamaları kapat
+quiet_on - Sessiz mod
+quiet_off - Sessiz modu kapat
+notify_only - Sadece güçlü sinyal gönder
+update_zip - ZIP güncelleme modunu aç
+update_apply - ZIP güncellemesini uygula
+update_status - Güncelleme durumunu göster
+rollback - Son yedeğe geri dön
+log - Son loglar
+error_log - Hata logları
+performance_today - Günlük performans
+explain_last - Son sinyali açıkla
+last_signal - Son sinyal
+botfather_commands - BotFather komut listesini göster
+help - Komut listesi

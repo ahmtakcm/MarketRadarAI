@@ -1,0 +1,68 @@
+{
+  "bot_active": true,
+  "kill_switch": false,
+  "explain_signals": true,
+  "modes": {
+    "scalp": false,
+    "intraday": true,
+    "midterm": true
+  },
+  "mode_only": null,
+  "risk_level": "normal",
+  "filters": {
+    "fake_breakout_filter": true,
+    "volume_confirmation": true,
+    "min_rr": 1.5,
+    "min_volume": null,
+    "fake_sensitivity": "medium",
+    "min_trend_strength": "medium"
+  },
+  "limits": {
+    "cooldown_minutes": 0,
+    "symbol_cooldown_minutes": {},
+    "max_signals_per_day": 999999,
+    "max_same_symbol_per_day": 999999
+  },
+  "watchlist": {
+    "symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "AAPLUSDT",
+      "TSLAUSDT",
+      "AMZNUSDT",
+      "METAUSDT",
+      "MSFTUSDT",
+      "XAUUSDT",
+      "XAGUSDT"
+    ],
+    "watched_symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "LINKUSDT",
+      "AVAXUSDT",
+      "XRPUSDT",
+      "AAPLUSDT",
+      "TSLAUSDT",
+      "AMZNUSDT",
+      "METAUSDT",
+      "MSFTUSDT",
+      "XAUUSDT",
+      "XAGUSDT",
+      "SOLUSDT",
+      "BNBUSDT"
+    ]
+  },
+  "notifications": {
+    "quiet_mode": false,
+    "notify_only": "all"
+  },
+  "update": {
+    "pending_zip": null,
+    "last_status": "idle"
+  },
+  "runtime": {
+    "last_restart_request": null,
+    "last_update_apply": null,
+    "force_scan_once": false
+  }
+}
