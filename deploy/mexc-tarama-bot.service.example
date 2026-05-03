@@ -1,0 +1,17 @@
+[Unit]
+Description=MEXC Tarama Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ahmtakcm
+WorkingDirectory=/home/ahmtakcm/mexc-tarama-bot
+ExecStart=/home/ahmtakcm/mexc-tarama-bot/venv/bin/python -u /home/ahmtakcm/mexc-tarama-bot/main.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/ahmtakcm/mexc-tarama-bot/storage/mexc.out
+StandardError=append:/home/ahmtakcm/mexc-tarama-bot/storage/mexc.err
+
+[Install]
+WantedBy=multi-user.target
