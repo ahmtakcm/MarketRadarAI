@@ -108,6 +108,51 @@ def get_ticker(symbol: str) -> Dict[str, Any]:
     return {}
 
 
+def _ticker_sort_value(item: Dict[str, Any]) -> float:
+    for key in ("amount24", "volume24", "volume", "vol", "holdVol"):
+        try:
+            value = item.get(key)
+            if value is not None:
+                return float(value)
+        except Exception:
+            continue
+    return 0.0
+
+
+def get_ranked_futures_symbols(limit: int = 20, min_24h_volume: float = 0) -> List[str]:
+    data = _get("/api/v1/contract/ticker")
+    payload = data.get("data") if data.get("success") else None
+
+    if not isinstance(payload, list):
+        return get_symbols()[:max(int(limit), 0)]
+
+    rows = []
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+
+        symbol = denormalize_symbol(item.get("symbol"))
+        if not symbol.endswith("USDT"):
+            continue
+
+        sort_value = _ticker_sort_value(item)
+        if sort_value < float(min_24h_volume or 0):
+            continue
+
+        rows.append((symbol, sort_value))
+
+    rows.sort(key=lambda row: row[1], reverse=True)
+
+    ranked = []
+    seen = set()
+    for symbol, _value in rows:
+        if symbol not in seen:
+            ranked.append(symbol)
+            seen.add(symbol)
+
+    return ranked[:max(int(limit), 0)]
+
+
 def get_klines(symbol: str, interval: str = "15m", limit: int = 200) -> List[Dict[str, float]]:
     mexc_symbol = normalize_symbol(symbol)
     mexc_interval = INTERVAL_MAP.get(str(interval), str(interval))
@@ -166,7 +211,6 @@ fetch_ticker = get_ticker
 fetch_klines = get_klines
 
 
-# Backward compatibility for existing scanner.py
 def get_valid_futures_symbols():
     return get_symbols()
 
