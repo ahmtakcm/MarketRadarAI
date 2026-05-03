@@ -10,14 +10,65 @@ with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
     SETTINGS = json.load(f)
 
 
+def _split_chat_ids(value):
+    if value is None:
+        return []
+
+    if isinstance(value, (list, tuple, set)):
+        raw_items = value
+    else:
+        raw_items = str(value).replace(";", ",").replace("\n", ",").split(",")
+
+    result = []
+    seen = set()
+    for item in raw_items:
+        chat_id = str(item or "").strip()
+        if chat_id and chat_id not in seen:
+            result.append(chat_id)
+            seen.add(chat_id)
+    return result
+
+
+def get_telegram_notification_chat_id():
+    telegram = SETTINGS.get("telegram", {})
+    chat_id = (
+        os.getenv("TELEGRAM_NOTIFICATION_CHAT_ID")
+        or os.getenv("TELEGRAM_CHAT_ID")
+        or os.getenv("TELEGRAM_ALLOWED_CHAT_ID")
+        or telegram.get("notification_chat_id")
+        or telegram.get("chat_id", "")
+    )
+    return str(chat_id).strip()
+
+
+def get_telegram_admin_chat_ids():
+    telegram = SETTINGS.get("telegram", {})
+    env_ids = _split_chat_ids(os.getenv("TELEGRAM_ADMIN_CHAT_IDS"))
+    configured_ids = _split_chat_ids(
+        telegram.get("admin_chat_ids")
+        or telegram.get("allowed_chat_ids")
+        or telegram.get("admin_chat_id")
+    )
+
+    result = []
+    seen = set()
+    for chat_id in env_ids + configured_ids:
+        if chat_id and chat_id not in seen:
+            result.append(chat_id)
+            seen.add(chat_id)
+
+    if not result:
+        notification_chat_id = get_telegram_notification_chat_id()
+        if notification_chat_id:
+            result.append(notification_chat_id)
+
+    return result
+
+
 def get_telegram_credentials():
     telegram = SETTINGS.get("telegram", {})
     token = os.getenv("TELEGRAM_BOT_TOKEN") or telegram.get("bot_token", "")
-    chat_id = (
-        os.getenv("TELEGRAM_CHAT_ID")
-        or os.getenv("TELEGRAM_ALLOWED_CHAT_ID")
-        or telegram.get("chat_id", "")
-    )
+    chat_id = get_telegram_notification_chat_id()
     return str(token).strip(), str(chat_id).strip()
 
 
