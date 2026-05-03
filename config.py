@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 
@@ -9,8 +10,18 @@ with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
     SETTINGS = json.load(f)
 
 
-BOT_TOKEN = SETTINGS["telegram"]["bot_token"]
-CHAT_ID = SETTINGS["telegram"]["chat_id"]
+def get_telegram_credentials():
+    telegram = SETTINGS.get("telegram", {})
+    token = os.getenv("TELEGRAM_BOT_TOKEN") or telegram.get("bot_token", "")
+    chat_id = (
+        os.getenv("TELEGRAM_CHAT_ID")
+        or os.getenv("TELEGRAM_ALLOWED_CHAT_ID")
+        or telegram.get("chat_id", "")
+    )
+    return str(token).strip(), str(chat_id).strip()
+
+
+BOT_TOKEN, CHAT_ID = get_telegram_credentials()
 
 REQUESTED_SYMBOLS = SETTINGS["symbols"]
 
@@ -37,8 +48,8 @@ PERFORMANCE_LOG_PATH = BASE_DIR / "data" / "performance_log.jsonl"
 
 
 # Mode-based timeframe architecture
-# Tarama süresi artık sabit interval ile değil,
-# core/scheduler.py içindeki mum kapanış zamanlamasıyla belirlenir.
+# Tarama suresi artik sabit interval ile degil,
+# core/scheduler.py icindeki mum kapanis zamanlamasiyla belirlenir.
 MODE_TIMEFRAMES = {
     "scalp": {
         "label": "Scalping",
@@ -47,7 +58,7 @@ MODE_TIMEFRAMES = {
         "entry": "3m",
     },
     "intraday": {
-        "label": "Gün İçi",
+        "label": "Gun Ici",
         "bias": "4h",
         "setup": "1h",
         "entry": "15m",
