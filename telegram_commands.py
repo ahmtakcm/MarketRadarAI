@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime as dt
 import logging
 import os
 import threading
@@ -8,15 +7,24 @@ from pathlib import Path
 
 import requests
 
-from config import APP_LOG_PATH, get_telegram_admin_chat_ids, get_telegram_credentials
+from config import get_telegram_admin_chat_ids, get_telegram_credentials
 from core.exchange_client import validate_futures_symbol
-from remote_config import get_active_modes, load_config, save_config
+from remote_config import load_config, save_config
 from signal_journal import build_explain_last_text, build_performance_today_text, get_last_signal
+from telegram.read_commands import (
+    botfather_commands_text,
+    error_log_text,
+    filters_text,
+    health_text,
+    help_text,
+    log_text,
+    modes_text,
+    status_text,
+)
 from telegram.router import (
     ADD_SYMBOL_COMMANDS,
     PRIVATE_ADMIN_COMMANDS,
     REMOVE_SYMBOL_COMMANDS,
-    SUPPORTED_COMMANDS,
     WATCHLIST_COMMANDS,
     command_args,
     command_name,
@@ -24,8 +32,6 @@ from telegram.router import (
 
 BASE_DIR = Path(__file__).resolve().parent
 _OFFSET_FILE = BASE_DIR / "telegram_offset.txt"
-_STORAGE_DIR = BASE_DIR / "storage"
-_BOTFATHER_COMMANDS_PATH = BASE_DIR / "BOTFATHER_COMMANDS.txt"
 _telegram_poll_lock = threading.Lock()
 _last_update_id = 0
 
@@ -181,102 +187,6 @@ def _watchlist_status_text(cfg):
     return "\n".join(lines)
 
 
-def _help_text():
-    lines = ["DESTEKLENEN KOMUTLAR", ""]
-    for command, description in SUPPORTED_COMMANDS.items():
-        if command == "/start":
-            continue
-        lines.append(f"{command} - {description}")
-    lines.append("")
-    lines.append("ADMIN komutlari gruptan yazilabilir; sonuc yetkili adminin ozel sohbetine gider.")
-    return "\n".join(lines)
-
-
-def _status_text(cfg):
-    active = "aktif" if cfg.get("bot_active", True) else "pasif"
-    kill_switch = "acik" if cfg.get("kill_switch", False) else "kapali"
-    quiet = "acik" if cfg.get("notifications", {}).get("quiet_mode", False) else "kapali"
-    explain = "acik" if cfg.get("explain_signals", True) else "kapali"
-    watchlist = _safe_symbols(cfg.get("watchlist", {}).get("symbols", []))
-    modes = get_active_modes(cfg)
-    return (
-        "BOT DURUMU\n\n"
-        f"Bot: {active}\n"
-        f"Kill switch: {kill_switch}\n"
-        f"Quiet mode: {quiet}\n"
-        f"Explain signals: {explain}\n"
-        f"Aktif modlar: {', '.join(modes) or 'yok'}\n"
-        f"Watchlist: {', '.join(watchlist) or 'bos'}"
-    )
-
-
-def _health_text(cfg):
-    return (
-        "HEALTH\n\n"
-        f"Zaman: {dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
-        f"Command polling: {'enabled' if telegram_polling_enabled() else 'disabled'}\n"
-        f"Bot active: {cfg.get('bot_active', True)}\n"
-        f"Kill switch: {cfg.get('kill_switch', False)}\n"
-        f"Watchlist count: {len(_safe_symbols(cfg.get('watchlist', {}).get('symbols', [])))}\n"
-        f"Remote config: ok"
-    )
-
-
-def _modes_text(cfg):
-    modes = cfg.get("modes", {})
-    active = get_active_modes(cfg)
-    lines = ["MODLAR", ""]
-    for mode in ["scalp", "intraday", "midterm"]:
-        lines.append(f"{mode}: {'acik' if modes.get(mode) else 'kapali'}")
-    lines.append("")
-    lines.append(f"mode_only: {cfg.get('mode_only') or 'off'}")
-    lines.append(f"aktif: {', '.join(active) or 'yok'}")
-    return "\n".join(lines)
-
-
-def _filters_text(cfg):
-    filters = cfg.get("filters", {})
-    lines = ["FILTRELER", ""]
-    for key in sorted(filters):
-        lines.append(f"{key}: {filters.get(key)}")
-    return "\n".join(lines)
-
-
-def _tail_file(path: Path, lines: int = 25) -> list[str]:
-    if not path.exists():
-        return []
-    try:
-        content = path.read_text(encoding="utf-8", errors="ignore").splitlines()
-        return content[-lines:]
-    except Exception as exc:
-        return [f"Log okunamadi: {exc}"]
-
-
-def _log_text():
-    rows = _tail_file(APP_LOG_PATH, lines=25)
-    if not rows:
-        return "LOG\n\nLog kaydi yok."
-    return "LOG\n\n" + "\n".join(rows)[-3500:]
-
-
-def _error_log_text():
-    rows = []
-    for path in [APP_LOG_PATH, _STORAGE_DIR / "telegram_commands.err", _STORAGE_DIR / "mexc.err"]:
-        for line in _tail_file(path, lines=120):
-            upper = line.upper()
-            if "ERROR" in upper or "WARNING" in upper or "TRACEBACK" in upper or "EXCEPTION" in upper:
-                rows.append(f"{path.name}: {line}")
-    if not rows:
-        return "ERROR LOG\n\nSon hata/uyari kaydi yok."
-    return "ERROR LOG\n\n" + "\n".join(rows[-25:])[-3500:]
-
-
-def _botfather_commands_text():
-    if _BOTFATHER_COMMANDS_PATH.exists():
-        return _BOTFATHER_COMMANDS_PATH.read_text(encoding="utf-8", errors="ignore")[-3500:]
-    return "\n".join(f"{cmd[1:]} - {desc}" for cmd, desc in SUPPORTED_COMMANDS.items() if cmd != "/start")
-
-
 def _add_symbol(cfg, symbol: str) -> str:
     symbol = str(symbol or "").upper().strip()
     if not symbol:
@@ -335,7 +245,7 @@ def _set_kill_switch(cfg, enabled: bool) -> str:
 def _set_mode(cfg, mode: str, enabled: bool) -> str:
     cfg.setdefault("modes", {})[mode] = bool(enabled)
     save_config(cfg)
-    return f"{mode} modu {'acildi' if enabled else 'kapatildi'}.\n\n" + _modes_text(cfg)
+    return f"{mode} modu {'acildi' if enabled else 'kapatildi'}.\n\n" + modes_text(cfg)
 
 
 def _set_mode_only(cfg, args: list[str]) -> str:
@@ -348,13 +258,13 @@ def _set_mode_only(cfg, args: list[str]) -> str:
 
     cfg["mode_only"] = None if value == "off" else value
     save_config(cfg)
-    return "Mode-only guncellendi.\n\n" + _modes_text(cfg)
+    return "Mode-only guncellendi.\n\n" + modes_text(cfg)
 
 
 def _set_filter(cfg, key: str, enabled: bool) -> str:
     cfg.setdefault("filters", {})[key] = bool(enabled)
     save_config(cfg)
-    return f"{key} {'acildi' if enabled else 'kapatildi'}.\n\n" + _filters_text(cfg)
+    return f"{key} {'acildi' if enabled else 'kapatildi'}.\n\n" + filters_text(cfg)
 
 
 def _set_explain_signals(cfg, enabled: bool) -> str:
@@ -436,19 +346,19 @@ def handle_command_message(message, send_telegram):
         return
 
     if cmd in {"/ping", "/start"}:
-        _send_text(send_telegram, chat_id, "pong" if cmd == "/ping" else _help_text())
+        _send_text(send_telegram, chat_id, "pong" if cmd == "/ping" else help_text())
         return
 
     if cmd == "/help":
-        _send_text(send_telegram, chat_id, _help_text())
+        _send_text(send_telegram, chat_id, help_text())
         return
 
     if cmd == "/status":
-        _send_text(send_telegram, chat_id, _status_text(cfg))
+        _send_text(send_telegram, chat_id, status_text(cfg))
         return
 
     if cmd == "/health":
-        _send_text(send_telegram, chat_id, _health_text(cfg))
+        _send_text(send_telegram, chat_id, health_text(cfg, telegram_polling_enabled()))
         return
 
     if cmd in WATCHLIST_COMMANDS:
@@ -482,23 +392,23 @@ def handle_command_message(message, send_telegram):
         return
 
     if cmd == "/modes":
-        _send_text(send_telegram, chat_id, _modes_text(cfg))
+        _send_text(send_telegram, chat_id, modes_text(cfg))
         return
 
     if cmd == "/filters":
-        _send_text(send_telegram, chat_id, _filters_text(cfg))
+        _send_text(send_telegram, chat_id, filters_text(cfg))
         return
 
     if cmd == "/log":
-        _send_text(send_telegram, chat_id, _log_text())
+        _send_text(send_telegram, chat_id, log_text())
         return
 
     if cmd == "/error_log":
-        _send_text(send_telegram, chat_id, _error_log_text())
+        _send_text(send_telegram, chat_id, error_log_text())
         return
 
     if cmd == "/botfather_commands":
-        _send_text(send_telegram, chat_id, _botfather_commands_text())
+        _send_text(send_telegram, chat_id, botfather_commands_text())
         return
 
     _send_text(send_telegram, chat_id, "Desteklenmeyen komut. /help yazabilirsin.")
