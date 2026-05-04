@@ -8,7 +8,6 @@ from pathlib import Path
 import requests
 
 from config import get_telegram_admin_chat_ids, get_telegram_credentials
-from core.exchange_client import validate_futures_symbol
 from remote_config import load_config, save_config
 from signal_journal import build_explain_last_text, build_performance_today_text, get_last_signal
 from telegram.read_commands import (
@@ -29,6 +28,7 @@ from telegram.router import (
     command_args,
     command_name,
 )
+from telegram.watchlist_commands import add_symbol, remove_symbol, watchlist_status_text
 
 BASE_DIR = Path(__file__).resolve().parent
 _OFFSET_FILE = BASE_DIR / "telegram_offset.txt"
@@ -134,17 +134,6 @@ def _save_last_update_id(update_id: int) -> None:
         logging.exception("Telegram offset dosyasi yazilamadi")
 
 
-def _safe_symbols(values):
-    result = []
-    seen = set()
-    for value in values or []:
-        symbol = str(value or "").upper().strip()
-        if symbol and symbol not in seen:
-            result.append(symbol)
-            seen.add(symbol)
-    return result
-
-
 def _send_text(send_telegram, chat_id: str, text: str):
     body = str(text or "")
     if not body.strip():
@@ -171,57 +160,6 @@ def _send_private_admin_result(send_telegram, command_chat_id: str, admin_user_i
         )
     else:
         raise RuntimeError("Admin cevabi gonderilemedi")
-
-
-def _watchlist_status_text(cfg):
-    symbols = _safe_symbols(cfg.get("watchlist", {}).get("symbols", []))
-    if not symbols:
-        return "WATCHLIST\n\nWatchlist bos."
-
-    lines = ["WATCHLIST", ""]
-    for symbol in symbols:
-        ok, reason = validate_futures_symbol(symbol)
-        status = "valid" if ok else f"invalid: {reason}"
-        lines.append(f"{symbol}: {status}")
-
-    return "\n".join(lines)
-
-
-def _add_symbol(cfg, symbol: str) -> str:
-    symbol = str(symbol or "").upper().strip()
-    if not symbol:
-        return "Kullanim: /addsymbol BTCUSDT"
-
-    ok, reason = validate_futures_symbol(symbol)
-    if not ok:
-        return f"Sembol eklenmedi: {symbol}\nNeden: {reason}"
-
-    watchlist = cfg.setdefault("watchlist", {}).setdefault("symbols", [])
-    existing = _safe_symbols(watchlist)
-    if symbol in existing:
-        return f"Sembol zaten watchlist icinde: {symbol}"
-
-    existing.append(symbol)
-    cfg["watchlist"]["symbols"] = existing
-    cfg["watchlist"]["watched_symbols"] = existing
-    save_config(cfg)
-    return f"Sembol watchlist'e eklendi: {symbol}"
-
-
-def _remove_symbol(cfg, symbol: str) -> str:
-    symbol = str(symbol or "").upper().strip()
-    if not symbol:
-        return "Kullanim: /removesymbol BTCUSDT"
-
-    existing = _safe_symbols(cfg.setdefault("watchlist", {}).setdefault("symbols", []))
-    if symbol not in existing:
-        return f"Sembol watchlist icinde yok: {symbol}"
-
-    updated = [item for item in existing if item != symbol]
-    cfg["watchlist"]["symbols"] = updated
-    cfg["watchlist"]["watched_symbols"] = updated
-    save_config(cfg)
-    return f"Sembol watchlist'ten silindi: {symbol}"
 
 
 def _set_bot_active(cfg, enabled: bool) -> str:
@@ -362,15 +300,15 @@ def handle_command_message(message, send_telegram):
         return
 
     if cmd in WATCHLIST_COMMANDS:
-        _send_text(send_telegram, chat_id, _watchlist_status_text(cfg))
+        _send_text(send_telegram, chat_id, watchlist_status_text(cfg))
         return
 
     if cmd in ADD_SYMBOL_COMMANDS:
-        _send_text(send_telegram, chat_id, _add_symbol(cfg, args[0] if args else ""))
+        _send_text(send_telegram, chat_id, add_symbol(cfg, args[0] if args else ""))
         return
 
     if cmd in REMOVE_SYMBOL_COMMANDS:
-        _send_text(send_telegram, chat_id, _remove_symbol(cfg, args[0] if args else ""))
+        _send_text(send_telegram, chat_id, remove_symbol(cfg, args[0] if args else ""))
         return
 
     if cmd == "/scan_now":
