@@ -169,6 +169,29 @@ candle_shape=True reason=ok count=300/300
 levels_ready=True
 ```
 
+Operasyon kontrolu:
+
+```bash
+python scripts/ops_check.py
+```
+
+Beklenen:
+
+```text
+OK required_files: ok
+OK git_unexpected_changes: none
+OK old_riskradarai_process: count=0
+OK main_process: count=1
+OK telegram_remote_process: count=1
+OK mexc-tarama-bot.service_active: active
+OK mexc-tarama-bot.service_enabled: enabled
+OK mexc-telegram-commands.service_active: active
+OK mexc-telegram-commands.service_enabled: enabled
+OK riskradarai.service_active: inactive
+OK riskradarai.service_enabled: disabled veya not-found
+ops_check=ok
+```
+
 ## Servis Kontrolu
 
 Durum:
