@@ -16,6 +16,8 @@ Bu dokuman `mexc-tarama-bot` projesinin calisan sunucu durumunu, deploy akisini 
 
 Ana bot ve Telegram komut dinleyici ayridir.
 
+Proje genel muhendislik kurallari icin `PROJECT_GOLDEN_RULES.md` dosyasina bakilmalidir.
+
 - `main.py`
   - Sadece tarama, sinyal uretimi, gunluk yorum ve lifecycle bildirimi yapar.
   - `getUpdates` veya command polling calistirmaz.
