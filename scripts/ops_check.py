@@ -7,8 +7,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_SERVICES = ("mexc-tarama-bot.service", "mexc-telegram-commands.service")
-OLD_SERVICE = "riskradarai.service"
-OLD_PROCESS_MARKER = "/RiskRadarAI/"
+COHOST_SERVICE = "riskradarai.service"
+COHOST_PROCESS_MARKER = "/RiskRadarAI/"
 MAIN_PROCESS_MARKER = "/mexc-tarama-bot/main.py"
 TELEGRAM_PROCESS_MARKER = "/mexc-tarama-bot/telegram_remote.py"
 
@@ -54,12 +54,12 @@ def check_processes():
     if not lines:
         return print_result(False, "process_check", "process list could not be read")
 
-    old_count = count_processes(lines, OLD_PROCESS_MARKER)
+    cohost_count = count_processes(lines, COHOST_PROCESS_MARKER)
     main_count = count_processes(lines, MAIN_PROCESS_MARKER)
     telegram_count = count_processes(lines, TELEGRAM_PROCESS_MARKER)
 
     ok = True
-    ok &= print_result(old_count == 0, "old_riskradarai_process", f"count={old_count}")
+    ok &= print_result(True, "cohost_riskradarai_process", f"count={cohost_count}")
     ok &= print_result(main_count == 1, "main_process", f"count={main_count}")
     ok &= print_result(telegram_count == 1, "telegram_remote_process", f"count={telegram_count}")
     return ok
@@ -91,10 +91,10 @@ def check_services():
         ok &= print_result(active, f"{service}_active", active_detail)
         ok &= print_result(enabled, f"{service}_enabled", enabled_detail)
 
-    old_active, old_active_detail = check_service_active(OLD_SERVICE)
-    old_enabled, old_enabled_detail = check_service_enabled(OLD_SERVICE)
-    ok &= print_result(not old_active, f"{OLD_SERVICE}_active", old_active_detail)
-    ok &= print_result(not old_enabled, f"{OLD_SERVICE}_enabled", old_enabled_detail)
+    cohost_active, cohost_active_detail = check_service_active(COHOST_SERVICE)
+    cohost_enabled, cohost_enabled_detail = check_service_enabled(COHOST_SERVICE)
+    ok &= print_result(True, f"cohost_{COHOST_SERVICE}_active", cohost_active_detail)
+    ok &= print_result(True, f"cohost_{COHOST_SERVICE}_enabled", cohost_enabled_detail)
     return ok
 
 
