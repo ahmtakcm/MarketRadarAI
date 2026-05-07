@@ -47,6 +47,14 @@ SUPPORTED_COMMANDS = {
 ADD_SYMBOL_COMMANDS = {"/addsymbol", "/add_symbol", "/watch"}
 REMOVE_SYMBOL_COMMANDS = {"/removesymbol", "/remove_symbol", "/unwatch"}
 WATCHLIST_COMMANDS = {"/symbols", "/watchlist"}
+GROUP_PUBLIC_COMMANDS = {
+    "/start",
+    "/help",
+    "/watchlist",
+    "/symbols",
+    "/last_signal",
+    "/performance_today",
+}
 PRIVATE_ADMIN_COMMANDS = {
     "/start_bot",
     "/stop_bot",

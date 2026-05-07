@@ -22,6 +22,7 @@ from telegram.read_commands import (
 )
 from telegram.router import (
     ADD_SYMBOL_COMMANDS,
+    GROUP_PUBLIC_COMMANDS,
     PRIVATE_ADMIN_COMMANDS,
     REMOVE_SYMBOL_COMMANDS,
     WATCHLIST_COMMANDS,
@@ -275,6 +276,11 @@ def handle_command_message(message, send_telegram):
         allowed_chat_ids = _allowed_chat_ids(cfg)
         if chat_id not in allowed_chat_ids:
             logging.warning("Yetkisiz Telegram mesaji reddedildi: chat_id=%s", chat_id)
+            return
+
+        if not is_admin_user and cmd not in GROUP_PUBLIC_COMMANDS:
+            logging.warning("Yetkisiz grup komutu reddedildi: chat_id=%s sender_id=%s cmd=%s", chat_id, sender_id, cmd)
+            _send_text(send_telegram, chat_id, "Bu komut sadece admin tarafindan kullanilabilir.")
             return
 
     if cmd in PRIVATE_ADMIN_COMMANDS:
