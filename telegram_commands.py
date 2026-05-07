@@ -260,21 +260,29 @@ def handle_command_message(message, send_telegram):
         return
 
     cfg = load_config()
-    allowed_chat_ids = _allowed_chat_ids(cfg)
-    if chat_id not in allowed_chat_ids:
-        logging.warning("Yetkisiz Telegram mesaji reddedildi: chat_id=%s", chat_id)
-        return
-
     cmd = command_name(text)
     args = command_args(text)
     sender_id = _sender_id(message)
+    is_private_chat = _is_private_chat(chat_id)
+    is_admin_user = sender_id in _admin_user_ids(cfg)
+
+    if is_private_chat:
+        if not is_admin_user:
+            logging.warning("Yetkisiz ozel Telegram komutu reddedildi: chat_id=%s sender_id=%s cmd=%s", chat_id, sender_id, cmd)
+            _send_text(send_telegram, chat_id, "Bu bot su anda sadece admin ozel komutlarina aciktir.")
+            return
+    else:
+        allowed_chat_ids = _allowed_chat_ids(cfg)
+        if chat_id not in allowed_chat_ids:
+            logging.warning("Yetkisiz Telegram mesaji reddedildi: chat_id=%s", chat_id)
+            return
 
     if cmd in PRIVATE_ADMIN_COMMANDS:
-        if _is_private_chat(chat_id):
+        if is_private_chat:
             _send_text(send_telegram, chat_id, _handle_private_admin_command(cmd, args, cfg))
             return
 
-        if sender_id not in _admin_user_ids(cfg):
+        if not is_admin_user:
             logging.warning("Yetkisiz grup admin komutu reddedildi: chat_id=%s sender_id=%s cmd=%s", chat_id, sender_id, cmd)
             _send_text(send_telegram, chat_id, "Bu admin komutu icin yetkin yok.")
             return
