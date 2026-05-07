@@ -23,6 +23,24 @@ def _safe_symbols(values):
     return result
 
 
+def _utc_now_text():
+    return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def _file_status_text(path):
+    file_path = Path(path)
+    if not file_path.exists():
+        return "missing"
+
+    try:
+        stat = file_path.stat()
+        modified_at = dt.datetime.fromtimestamp(stat.st_mtime, tz=dt.timezone.utc)
+        modified_text = modified_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+        return f"{modified_text} | {stat.st_size} bytes"
+    except Exception as exc:
+        return f"unreadable: {exc}"
+
+
 def help_text():
     lines = ["DESTEKLENEN KOMUTLAR", ""]
     for command, description in SUPPORTED_COMMANDS.items():
@@ -53,13 +71,18 @@ def status_text(cfg):
 
 
 def health_text(cfg, polling_enabled: bool):
+    watchlist = _safe_symbols(cfg.get("watchlist", {}).get("symbols", []))
     return (
         "HEALTH\n\n"
-        f"Zaman: {dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
+        f"Zaman: {_utc_now_text()}\n"
         f"Command polling: {'enabled' if polling_enabled else 'disabled'}\n"
         f"Bot active: {cfg.get('bot_active', True)}\n"
         f"Kill switch: {cfg.get('kill_switch', False)}\n"
-        f"Watchlist count: {len(_safe_symbols(cfg.get('watchlist', {}).get('symbols', [])))}\n"
+        f"Watchlist count: {len(watchlist)}\n"
+        f"Watchlist: {', '.join(watchlist) or 'bos'}\n"
+        f"App log: {_file_status_text(APP_LOG_PATH)}\n"
+        f"Telegram err: {_file_status_text(STORAGE_DIR / 'telegram_commands.err')}\n"
+        f"MEXC err: {_file_status_text(STORAGE_DIR / 'mexc.err')}\n"
         f"Remote config: ok"
     )
 
