@@ -1,5 +1,4 @@
-from core.indicators import ema_last, atr
-
+from core.indicators import atr, ema_last
 
 STRATEGY_KEY = "fibb_bands"
 STRATEGY_NAME = "FiBB Bands"

@@ -3,23 +3,21 @@ import json
 import logging
 import os
 import socket
+import threading
 import time
 from pathlib import Path
 
 from config import APP_LOG_PATH, REQUESTED_SYMBOLS
-from core.state_store import load_state, save_state
-from core.scanner import get_active_symbols, build_signal_message, get_daily_commentaries
-from core.performance_tracker import finalize_pending_signals
 from core.exchange_client import fetch_klines, get_kline_limit
+from core.performance_tracker import finalize_pending_signals
+from core.scanner import build_signal_message, get_active_symbols, get_daily_commentaries
 from core.scheduler import next_sleep_seconds
+from core.state_store import load_state, save_state
 from notifiers.telegram_notifier import send_telegram
-
 from remote_config import load_config, save_config
-from telegram_commands import poll_telegram_commands
 from signal_journal import append_signal_message, set_last_signal
 from single_instance import single_instance
-import threading
-
+from telegram_commands import poll_telegram_commands
 
 BASE_DIR = Path(__file__).resolve().parent
 STORAGE_DIR = BASE_DIR / "storage"

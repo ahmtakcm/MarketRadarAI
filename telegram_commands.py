@@ -1,21 +1,19 @@
 from __future__ import annotations
 
-import datetime as dt
 import logging
 import os
 import sys
-import time
 import threading
 from pathlib import Path
 
 import requests
 
-from remote_config import load_config, save_config, get_active_modes, normalize_symbol
-from update_manager import INBOX_DIR, apply_update, rollback
-from health_monitor import build_health_text
-from signal_journal import get_last_signal, build_performance_today_text, build_explain_last_text
-from core.scheduler import build_schedule_text
 from core.exchange_client import get_valid_futures_symbols
+from core.scheduler import build_schedule_text
+from health_monitor import build_health_text
+from remote_config import get_active_modes, load_config, normalize_symbol, save_config
+from signal_journal import build_performance_today_text, get_last_signal
+from update_manager import INBOX_DIR, apply_update, rollback
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 ALLOWED_CHAT_ID = os.getenv("TELEGRAM_ALLOWED_CHAT_ID", "").strip()

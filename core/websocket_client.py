@@ -1,6 +1,8 @@
 import json
 import threading
+
 import websocket
+
 from config import BINANCE_WS_BASE
 
 

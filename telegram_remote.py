@@ -1,9 +1,11 @@
-﻿import os, time, traceback
+﻿import os
+import time
 from pathlib import Path
-import requests
 
-from remote_config import load_config, save_config, get_active_modes
+import requests
 from remote_security import is_authorized
+
+from remote_config import get_active_modes, load_config, save_config
 from update_manager import INBOX_DIR, apply_update, rollback
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
@@ -23,7 +25,7 @@ def send(chat_id, text):
 def get_offset():
     try:
         return int(OFFSET_FILE.read_text().strip())
-    except:
+    except Exception:
         return 0
 
 def set_offset(v):
@@ -227,7 +229,7 @@ def run():
 
                 send(chat_id, reply)
 
-        except Exception as e:
+        except Exception:
             time.sleep(5)
 
 if __name__ == "__main__":
