@@ -1,5 +1,5 @@
 from config import ENABLED_STRATEGIES, STRATEGY_SETTINGS
-from strategies import custom_strategy, fibb_bands, ema_cross, rsi_reversal
+from strategies import custom_strategy, ema_cross, fibb_bands, rsi_reversal
 
 STRATEGY_MAP = {
     "custom_strategy": custom_strategy,

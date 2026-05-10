@@ -1,17 +1,16 @@
-import time
 import logging
+import time
 
-from config import REQUESTED_SYMBOLS, COMMENTARY_SYMBOLS, SIGNALS_LOG_PATH
-from core.exchange_client import get_valid_futures_symbols, get_kline_limit, fetch_klines
-from macro_bridge import macro_direction_for_symbol, get_macro_signal
-from high_alert_bridge import is_high_alert, get_high_alert_assets
+from config import COMMENTARY_SYMBOLS, SIGNALS_LOG_PATH
+from core.exchange_client import fetch_klines, get_kline_limit, get_valid_futures_symbols
 from core.indicator_engine import build_levels
-from core.signal_engine import generate_signals, build_daily_commentary
+from core.mtf_signal_engine import analyze_mtf_signal
 from core.performance_tracker import register_signal
-from core.state_store import append_jsonl
 from core.scheduler import get_active_mode_plans
+from core.signal_engine import build_daily_commentary, generate_signals
+from core.state_store import append_jsonl
+from macro_bridge import get_macro_signal, macro_direction_for_symbol
 from remote_config import load_config
-from core.mtf_signal_engine import analyze_mtf_signal, build_mtf_context
 
 
 def get_active_symbols():
@@ -137,29 +136,6 @@ def build_signal_lines(symbols, state):
 
                     price = entry_levels["close"]
                     center = entry_levels["center"]
-
-                    if signal == "LONG":
-                        trend_text = "Yükseliş trendi; fiyat entry merkez üstünde tutunuyor."
-                        risk_text = f"{center:.2f} altı entry kapanışı senaryoyu zayıflatır."
-                        follow_text = "Yukarı yönlü devam beklenir."
-                    elif signal == "SHORT":
-                        trend_text = "Düşüş trendi; fiyat entry merkez altında baskı görüyor."
-                        risk_text = f"{center:.2f} üstü entry kapanışı senaryoyu bozar."
-                        follow_text = "Aşağı yönlü devam izlenmeli."
-                    elif "OVERBOUGHT" in signal:
-                        trend_text = "Aşırı alım bölgesi; fiyat genişleme yapmış durumda."
-                        risk_text = "Yukarıda tutunamazsa sert düzeltme gelebilir."
-                        follow_text = "Geri çekilme / düzeltme takip edilmeli."
-                    elif "OVERSOLD" in signal:
-                        trend_text = "Aşırı satım bölgesi; tepki ihtimali oluşuyor."
-                        risk_text = "Satış baskısı devam ederse düşüş sürebilir."
-                        follow_text = "Tepki alımı izlenmeli."
-                    else:
-                        trend_text = "Nötr yapı."
-                        risk_text = "Belirsiz piyasa."
-                        follow_text = "Ek teyit beklenmeli."
-
-                    cancel_level = center
 
                     direction = "LONG" if "LONG" in signal else "SHORT" if "SHORT" in signal else signal
 

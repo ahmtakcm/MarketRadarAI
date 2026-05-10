@@ -1,4 +1,4 @@
-from core.indicators import ema_last, atr
+from core.indicators import atr, ema_last
 
 
 def _cached_ema(context, closes, length):

@@ -1,5 +1,6 @@
 import json
 import os
+
 from config import STATE_FILE_PATH
 
 DEFAULT_STATE = {

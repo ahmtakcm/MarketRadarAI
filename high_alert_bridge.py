@@ -1,5 +1,4 @@
 import json
-import time
 from pathlib import Path
 
 STATE_PATH = Path.home() / "RiskRadarAI/storage/macro_high_alert_state.json"

@@ -1,5 +1,6 @@
 import time
-from config import SIGNAL_HORIZONS_BARS, PERFORMANCE_LOG_PATH
+
+from config import PERFORMANCE_LOG_PATH, SIGNAL_HORIZONS_BARS
 from core.state_store import append_jsonl
 
 
