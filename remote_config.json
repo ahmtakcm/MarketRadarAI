@@ -26,16 +26,38 @@
   "watchlist": {
     "symbols": [
       "BTCUSDT",
-      "ETHUSDT"
+      "ETHUSDT",
+      "XAUTUSDT",
+      "NAS100USDT",
+      "US30USDT",
+      "SILVERUSDT",
+      "UKOILUSDT"
     ],
     "watched_symbols": [
       "BTCUSDT",
-      "ETHUSDT"
+      "ETHUSDT",
+      "XAUTUSDT",
+      "NAS100USDT",
+      "US30USDT",
+      "SILVERUSDT",
+      "UKOILUSDT"
     ]
   },
   "notifications": {
     "quiet_mode": false,
     "notify_only": "all"
+  },
+  "telegram": {
+    "commands_enabled": true,
+    "polling_enabled": true,
+    "notification_chat_id": "-1003949299046",
+    "admin_chat_ids": [
+      "-1003949299046",
+      "1218508355"
+    ],
+    "allowed_chat_ids": [
+      "-1003949299046"
+    ]
   },
   "update": {
     "pending_zip": null,
