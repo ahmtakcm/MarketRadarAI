@@ -13,7 +13,6 @@ from core.scheduler import build_schedule_text
 from health_monitor import build_health_text
 from remote_config import get_active_modes, load_config, normalize_symbol, save_config
 from signal_journal import build_performance_today_text, get_last_signal
-from update_manager import INBOX_DIR, apply_update, rollback
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 
@@ -35,14 +34,74 @@ if not ALLOWED_CHAT_ID:
 if not GROUP_CHAT_ID and ALLOWED_CHAT_ID:
     GROUP_CHAT_ID = ALLOWED_CHAT_ID
 
-GROUP_SAFE_COMMANDS = {
+ADMIN_PRIVATE_COMMANDS = {
     "/help",
     "/ping",
-    "/status",
     "/health",
+    "/status",
     "/schedule",
+    "/scan_now",
+    "/start",
+    "/stop",
+    "/restart",
+    "/modes",
+    "/scalp_on",
+    "/scalp_off",
+    "/intraday_on",
+    "/intraday_off",
+    "/midterm_on",
+    "/midterm_off",
+    "/filters",
+    "/fake_filter_on",
+    "/fake_filter_off",
+    "/volume_filter_on",
+    "/volume_filter_off",
+    "/set_min_rr",
+    "/symbols",
     "/watchlist",
+    "/add_symbol",
+    "/remove_symbol",
+    "/last_signal",
+    "/performance_today",
+    "/log",
+    "/error_log",
 }
+
+# Group commands intentionally disabled for now.
+GROUP_SAFE_COMMANDS = set()
+
+BOTFATHER_COMMANDS = [
+    ("help", "help"),
+    ("ping", "ping"),
+    ("health", "health"),
+    ("status", "status"),
+    ("schedule", "schedule"),
+    ("scan_now", "scan_now"),
+    ("start", "start"),
+    ("stop", "stop"),
+    ("restart", "restart"),
+    ("modes", "modes"),
+    ("scalp_on", "scalp_on"),
+    ("scalp_off", "scalp_off"),
+    ("intraday_on", "intraday_on"),
+    ("intraday_off", "intraday_off"),
+    ("midterm_on", "midterm_on"),
+    ("midterm_off", "midterm_off"),
+    ("filters", "filters"),
+    ("fake_filter_on", "fake_filter_on"),
+    ("fake_filter_off", "fake_filter_off"),
+    ("volume_filter_on", "volume_filter_on"),
+    ("volume_filter_off", "volume_filter_off"),
+    ("set_min_rr", "set_min_rr"),
+    ("symbols", "symbols"),
+    ("watchlist", "watchlist"),
+    ("add_symbol", "add_symbol"),
+    ("remove_symbol", "remove_symbol"),
+    ("last_signal", "last_signal"),
+    ("performance_today", "performance_today"),
+    ("log", "log"),
+    ("error_log", "error_log"),
+]
 
 API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
@@ -96,18 +155,40 @@ def _tg(method, **data):
     return r.json()
 
 
-def _download_file(file_id, filename):
-    info = _tg("getFile", file_id=file_id)
-    file_path = info["result"]["file_path"]
+def _send_to_chat(chat_id: str, text: str) -> None:
+    _tg("sendMessage", chat_id=str(chat_id), text=str(text))
 
-    url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
-    r = requests.get(url, timeout=120)
-    r.raise_for_status()
 
-    INBOX_DIR.mkdir(parents=True, exist_ok=True)
-    target = INBOX_DIR / filename
-    target.write_bytes(r.content)
-    return target
+_commands_synced = False
+
+
+def sync_telegram_commands() -> None:
+    global _commands_synced
+    if _commands_synced:
+        return
+
+    import json
+
+    commands = [
+        {"command": command, "description": description}
+        for command, description in BOTFATHER_COMMANDS
+    ]
+
+    _tg(
+        "setMyCommands",
+        commands=json.dumps(commands, ensure_ascii=False),
+        scope=json.dumps({"type": "chat", "chat_id": int(ADMIN_CHAT_ID)}),
+    )
+
+    _tg(
+        "setMyCommands",
+        commands="[]",
+        scope=json.dumps({"type": "chat", "chat_id": int(GROUP_CHAT_ID)}),
+    )
+
+    _commands_synced = True
+    logging.info("Telegram command menu synced")
+
 
 
 def _restart_process(delay_seconds=1.5):
@@ -263,26 +344,8 @@ def handle_command_message(message, send_telegram):
 
     cfg = load_config()
 
-    # ZIP güncelleme akışı
-    if "document" in message:
-        if cfg.get("update", {}).get("last_status") != "waiting_zip":
-            send_telegram("ZIP geldi ama /update_zip modu açık değil.")
-            return
-
-        doc = message["document"]
-        filename = doc.get("file_name", "")
-
-        if not filename.lower().endswith(".zip"):
-            send_telegram("Sadece .zip dosyası kabul edilir.")
-            return
-
-        target = _download_file(doc["file_id"], filename)
-        cfg.setdefault("update", {})["pending_zip"] = str(target)
-        cfg.setdefault("update", {})["last_status"] = "zip_received"
-        save_config(cfg)
-
-        send_telegram(f"✅ ZIP alındı: {filename}\nUygulamak için /update_apply yaz.")
-        return
+    def reply(reply_text: str) -> None:
+        _send_to_chat(chat_id, reply_text)
 
     text = message.get("text", "").strip()
     if not text.startswith("/"):
@@ -290,58 +353,39 @@ def handle_command_message(message, send_telegram):
 
     parts = text.split()
     cmd = parts[0].lower()
+    cmd = cmd.split("@", 1)[0]
 
-    aliases = {
-        "/komutlar": "/help",
-        "/commands": "/help",
-        "/alive": "/status",
-        "/durum": "/status",
-        "/start_bot": "/start",
-        "/stop_bot": "/stop",
-    }
-    cmd = aliases.get(cmd, cmd)
-
-    removed_cmds = {
-        "/scan_interval", "/interval", "/set_interval", "/speed",
-        "/kill_switch_on", "/kill_switch_off",
-        "/mode_only", "/risk",
-        "/set_cooldown", "/set_cooldown_symbol",
-        "/set_max_signals", "/set_max_same_symbol",
-        "/watch", "/unwatch",
-        "/explain_on", "/explain_off",
-        "/quiet_on", "/quiet_off",
-        "/notify_only", "/explain_last",
-        "/botfather_commands",
-    }
-
-    if cmd in removed_cmds:
-        send_telegram("⚠️ Bu komut kaldırıldı. Güncel komutlar için /help yaz.")
+    if is_admin_private and cmd not in ADMIN_PRIVATE_COMMANDS:
+        logging.warning("Admin registry disi komut reddedildi: chat_id=%s cmd=%s", chat_id, cmd)
+        reply("Bilinmeyen komut. /help yaz.")
         return
 
+
+
     if cmd == "/help":
-        send_telegram(_help_text())
+        reply(_help_text())
         return
 
     if cmd == "/ping":
-        send_telegram("🏓 pong")
+        reply("🏓 pong")
         return
 
     if cmd == "/health":
-        send_telegram(build_health_text())
+        reply(build_health_text())
         return
 
     if cmd == "/status":
-        send_telegram(build_status())
+        reply(build_status())
         return
 
     if cmd == "/schedule":
-        send_telegram(build_schedule_text())
+        reply(build_schedule_text())
         return
 
     if cmd == "/scan_now":
         cfg.setdefault("runtime", {})["force_scan_once"] = True
         save_config(cfg)
-        send_telegram("⚡ Manuel tarama başlatıldı. Bekleme kesildi; bot uygunsa hemen taramaya geçiyor.")
+        reply("⚡ Manuel tarama başlatıldı. Bekleme kesildi; bot uygunsa hemen taramaya geçiyor.")
         return
 
     if cmd == "/start":
@@ -349,23 +393,23 @@ def handle_command_message(message, send_telegram):
         cfg["kill_switch"] = False
         cfg.setdefault("notifications", {})["quiet_mode"] = False
         save_config(cfg)
-        send_telegram("✅ Bot başlatıldı. Sinyal üretimi aktif.")
+        reply("✅ Bot başlatıldı. Sinyal üretimi aktif.")
         return
 
     if cmd == "/stop":
         cfg["bot_active"] = False
         save_config(cfg)
-        send_telegram("⛔ Bot durduruldu. Sinyal üretimi kapalı.")
+        reply("⛔ Bot durduruldu. Sinyal üretimi kapalı.")
         return
 
     if cmd == "/restart":
-        send_telegram("♻️ Bot yeniden başlatılıyor...")
+        reply("♻️ Bot yeniden başlatılıyor...")
         _restart_process()
         return
 
     if cmd == "/modes":
         active_modes = get_active_modes(cfg)
-        send_telegram(
+        reply(
             "🧭 MODLAR\n\n"
             f"Scalp: {'✅' if cfg['modes'].get('scalp') else '❌'}\n"
             f"Intraday: {'✅' if cfg['modes'].get('intraday') else '❌'}\n"
@@ -381,11 +425,11 @@ def handle_command_message(message, send_telegram):
         cfg.setdefault("modes", {})[name] = state == "on"
         cfg["mode_only"] = None
         save_config(cfg)
-        send_telegram(f"✅ {name} {'açıldı' if state == 'on' else 'kapatıldı'}.")
+        reply(f"✅ {name} {'açıldı' if state == 'on' else 'kapatıldı'}.")
         return
 
     if cmd == "/filters":
-        send_telegram(
+        reply(
             "🧪 FİLTRELER\n\n"
             f"Fake breakout: {'✅' if cfg['filters'].get('fake_breakout_filter') else '❌'}\n"
             f"Volume: {'✅' if cfg['filters'].get('volume_confirmation') else '❌'}\n"
@@ -396,50 +440,50 @@ def handle_command_message(message, send_telegram):
     if cmd == "/fake_filter_on":
         cfg.setdefault("filters", {})["fake_breakout_filter"] = True
         save_config(cfg)
-        send_telegram("✅ Fake breakout filtresi açıldı.")
+        reply("✅ Fake breakout filtresi açıldı.")
         return
 
     if cmd == "/fake_filter_off":
         cfg.setdefault("filters", {})["fake_breakout_filter"] = False
         save_config(cfg)
-        send_telegram("⚠️ Fake breakout filtresi kapatıldı.")
+        reply("⚠️ Fake breakout filtresi kapatıldı.")
         return
 
     if cmd == "/volume_filter_on":
         cfg.setdefault("filters", {})["volume_confirmation"] = True
         save_config(cfg)
-        send_telegram("✅ Volume filtresi açıldı.")
+        reply("✅ Volume filtresi açıldı.")
         return
 
     if cmd == "/volume_filter_off":
         cfg.setdefault("filters", {})["volume_confirmation"] = False
         save_config(cfg)
-        send_telegram("⚠️ Volume filtresi kapatıldı.")
+        reply("⚠️ Volume filtresi kapatıldı.")
         return
 
     if cmd == "/set_min_rr":
         if len(parts) < 2:
-            send_telegram("Kullanım: /set_min_rr 1.5")
+            reply("Kullanım: /set_min_rr 1.5")
             return
         value = _safe_float(parts[1])
         if value is None or value <= 0:
-            send_telegram("Geçersiz RR değeri.")
+            reply("Geçersiz RR değeri.")
             return
         cfg.setdefault("filters", {})["min_rr"] = value
         save_config(cfg)
-        send_telegram(f"✅ Minimum RR: {value}")
+        reply(f"✅ Minimum RR: {value}")
         return
 
     if cmd in ["/symbols", "/watchlist"]:
         symbols = cfg.get("watchlist", {}).get("symbols", [])
         if symbols:
-            send_telegram(
+            reply(
                 "📌 İZLEME LİSTESİ\n\n"
                 f"Taranacak semboller: {', '.join(symbols)}\n\n"
                 "Not: Bot sadece bu listedeki sembolleri tarar."
             )
         else:
-            send_telegram(
+            reply(
                 "📌 İZLEME LİSTESİ\n\n"
                 "Liste boş. Bot tarama yapmaz.\n\n"
                 "Sembol eklemek için: /add_symbol BTCUSDT"
@@ -448,7 +492,7 @@ def handle_command_message(message, send_telegram):
 
     if cmd == "/add_symbol":
         if len(parts) < 2:
-            send_telegram("Kullanım: /add_symbol BTCUSDT")
+            reply("Kullanım: /add_symbol BTCUSDT")
             return
 
         symbol = normalize_symbol(parts[1])
@@ -457,11 +501,11 @@ def handle_command_message(message, send_telegram):
             valid_symbols = set(get_valid_futures_symbols())
         except Exception as e:
             logging.exception("Sembol doğrulama hatası")
-            send_telegram(f"❌ Borsa sembol listesi alınamadı. Daha sonra tekrar dene. Hata: {str(e)[:120]}")
+            reply(f"❌ Borsa sembol listesi alınamadı. Daha sonra tekrar dene. Hata: {str(e)[:120]}")
             return
 
         if symbol not in valid_symbols:
-            send_telegram(
+            reply(
                 f"❌ Sembol eklenmedi: {symbol}\n"
                 "Bu çift güncel futures listesinde görünmüyor."
             )
@@ -470,35 +514,35 @@ def handle_command_message(message, send_telegram):
         cfg.setdefault("watchlist", {}).setdefault("symbols", [])
 
         if symbol in cfg["watchlist"]["symbols"]:
-            send_telegram(f"ℹ️ Sembol zaten listede: {symbol}")
+            reply(f"ℹ️ Sembol zaten listede: {symbol}")
             return
 
         cfg["watchlist"]["symbols"].append(symbol)
         save_config(cfg)
-        send_telegram(f"✅ Sembol eklendi: {symbol}")
+        reply(f"✅ Sembol eklendi: {symbol}")
         return
 
     if cmd == "/remove_symbol":
         if len(parts) < 2:
-            send_telegram("Kullanım: /remove_symbol BTCUSDT")
+            reply("Kullanım: /remove_symbol BTCUSDT")
             return
         symbol = normalize_symbol(parts[1])
         cfg.setdefault("watchlist", {}).setdefault("symbols", [])
         cfg["watchlist"]["symbols"] = [s for s in cfg["watchlist"]["symbols"] if s != symbol]
         save_config(cfg)
-        send_telegram(f"🗑 Sembol çıkarıldı: {symbol}")
+        reply(f"🗑 Sembol çıkarıldı: {symbol}")
         return
 
     if cmd == "/last_signal":
-        send_telegram(get_last_signal())
+        reply(get_last_signal())
         return
 
     if cmd == "/performance_today":
-        send_telegram(build_performance_today_text())
+        reply(build_performance_today_text())
         return
 
     if cmd == "/log":
-        send_telegram("📜 SON LOG\n\n" + _read_tail(BASE_DIR / "logs" / "app.log", 25))
+        reply("📜 SON LOG\n\n" + _read_tail(BASE_DIR / "logs" / "app.log", 25))
         return
 
     if cmd == "/error_log":
@@ -507,48 +551,19 @@ def handle_command_message(message, send_telegram):
         important = [ln for ln in lines if any(x in ln for x in ["ERROR", "Traceback", "Exception"])]
 
         if important:
-            send_telegram("🚨 HATA LOG\n\n" + "\n".join(important[-30:]))
+            reply("🚨 HATA LOG\n\n" + "\n".join(important[-30:]))
         else:
-            send_telegram("✅ Son loglarda kritik hata yok.")
+            reply("✅ Son loglarda kritik hata yok.")
         return
 
-    if cmd == "/update_zip":
-        cfg.setdefault("update", {})["last_status"] = "waiting_zip"
-        save_config(cfg)
-        send_telegram("📦 ZIP güncelleme modu açıldı. Şimdi ZIP dosyasını gönder.")
-        return
 
-    if cmd == "/update_status":
-        update = cfg.get("update", {})
-        send_telegram(
-            "📦 GÜNCELLEME DURUMU\n\n"
-            f"Durum: {update.get('last_status')}\n"
-            f"Bekleyen ZIP: {update.get('pending_zip') or 'Yok'}"
-        )
-        return
-
-    if cmd == "/update_apply":
-        try:
-            result = apply_update()
-            send_telegram("✅ Güncelleme uygulandı. Bot yeniden başlatılıyor...\n\n" + str(result))
-            _restart_process()
-        except Exception as e:
-            logging.exception("Update apply hatası")
-            send_telegram(f"❌ Güncelleme hatası: {e}")
-        return
-
-    if cmd == "/rollback":
-        try:
-            result = rollback()
-            send_telegram("♻️ Rollback uygulandı. Bot yeniden başlatılıyor...\n\n" + str(result))
-            _restart_process()
-        except Exception as e:
-            logging.exception("Rollback hatası")
-            send_telegram(f"❌ Rollback hatası: {e}")
-        return
-
-    send_telegram("Bilinmeyen komut. /help yaz.")
+    reply("Bilinmeyen komut. /help yaz.")
 def poll_telegram_commands(send_telegram):
+    try:
+        sync_telegram_commands()
+    except Exception:
+        logging.exception("Telegram command sync failed")
+
     # TELEGRAM_COMMAND_THREAD_PATCH_V1: non-overlapping getUpdates with persistent offset.
     global _last_update_id
     if not _telegram_poll_lock.acquire(blocking=False):
