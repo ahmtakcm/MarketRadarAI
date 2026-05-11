@@ -41,6 +41,7 @@ GROUP_SAFE_COMMANDS = {
     "/status",
     "/health",
     "/schedule",
+    "/watchlist",
 }
 
 API = f"https://api.telegram.org/bot{BOT_TOKEN}"
@@ -243,6 +244,7 @@ def handle_command_message(message, send_telegram):
 
     text = message.get("text", "").strip()
     cmd = text.split()[0].lower() if text.startswith("/") else ""
+    cmd = cmd.split("@", 1)[0]
 
     is_admin_private = chat_id == ADMIN_CHAT_ID
     is_group_chat = chat_id == GROUP_CHAT_ID
