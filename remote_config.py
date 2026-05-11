@@ -9,8 +9,6 @@ BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "remote_config.json"
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    "bot_active": True,
-    "kill_switch": False,
     "explain_signals": True,
     "modes": {
         "scalp": False,
@@ -37,7 +35,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "watched_symbols": [],
     },
     "notifications": {
-        "quiet_mode": False,
         "notify_only": "all",
     },
     "update": {
