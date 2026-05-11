@@ -9,10 +9,9 @@ from pathlib import Path
 import requests
 
 from core.exchange_client import get_valid_futures_symbols
-from core.scheduler import build_schedule_text
 from health_monitor import build_health_text
 from remote_config import get_active_modes, load_config, normalize_symbol, save_config
-from signal_journal import build_performance_today_text, get_last_signal
+from signal_journal import build_performance_today_text
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 
@@ -39,7 +38,6 @@ ADMIN_PRIVATE_COMMANDS = {
     "/ping",
     "/health",
     "/status",
-    "/schedule",
     "/scan_now",
     "/start",
     "/stop",
@@ -47,21 +45,14 @@ ADMIN_PRIVATE_COMMANDS = {
     "/modes",
     "/scalp_on",
     "/scalp_off",
-    "/intraday_on",
-    "/intraday_off",
-    "/midterm_on",
-    "/midterm_off",
     "/filters",
     "/fake_filter_on",
     "/fake_filter_off",
     "/volume_filter_on",
     "/volume_filter_off",
-    "/set_min_rr",
-    "/symbols",
     "/watchlist",
     "/add_symbol",
     "/remove_symbol",
-    "/last_signal",
     "/performance_today",
     "/log",
     "/error_log",
@@ -75,7 +66,6 @@ BOTFATHER_COMMANDS = [
     ("ping", "ping"),
     ("health", "health"),
     ("status", "status"),
-    ("schedule", "schedule"),
     ("scan_now", "scan_now"),
     ("start", "start"),
     ("stop", "stop"),
@@ -83,21 +73,14 @@ BOTFATHER_COMMANDS = [
     ("modes", "modes"),
     ("scalp_on", "scalp_on"),
     ("scalp_off", "scalp_off"),
-    ("intraday_on", "intraday_on"),
-    ("intraday_off", "intraday_off"),
-    ("midterm_on", "midterm_on"),
-    ("midterm_off", "midterm_off"),
     ("filters", "filters"),
     ("fake_filter_on", "fake_filter_on"),
     ("fake_filter_off", "fake_filter_off"),
     ("volume_filter_on", "volume_filter_on"),
     ("volume_filter_off", "volume_filter_off"),
-    ("set_min_rr", "set_min_rr"),
-    ("symbols", "symbols"),
     ("watchlist", "watchlist"),
     ("add_symbol", "add_symbol"),
     ("remove_symbol", "remove_symbol"),
-    ("last_signal", "last_signal"),
     ("performance_today", "performance_today"),
     ("log", "log"),
     ("error_log", "error_log"),
@@ -294,8 +277,6 @@ def _help_text():
         "/status /ping /health /log /error_log\n\n"
 
         "⏱ Tarama\n"
-        "/schedule /scan_now\n\n"
-
         "🤖 Bot\n"
         "/start /stop /restart\n\n"
 
@@ -303,20 +284,14 @@ def _help_text():
         "/modes /scalp_on /scalp_off\n\n"
 
         "🧪 Filtreler\n"
-        "/filters /set_min_rr\n"
         "/fake_filter_on /fake_filter_off\n"
         "/volume_filter_on /volume_filter_off\n\n"
 
         "📌 Semboller\n"
-        "/symbols /watchlist\n"
         "/add_symbol BTCUSDT /remove_symbol BTCUSDT\n\n"
 
         "📈 Analiz\n"
-        "/last_signal /performance_today\n\n"
-
         "📦 Güncelleme\n"
-        "/update_zip /update_apply /update_status /rollback\n\n"
-
         "Not: Tarama mum kapanışına göre çalışır. /schedule yaz."
     )
 
@@ -378,10 +353,6 @@ def handle_command_message(message, send_telegram):
         reply(build_status())
         return
 
-    if cmd == "/schedule":
-        reply(build_schedule_text())
-        return
-
     if cmd == "/scan_now":
         cfg.setdefault("runtime", {})["force_scan_once"] = True
         save_config(cfg)
@@ -419,13 +390,12 @@ def handle_command_message(message, send_telegram):
         )
         return
 
-    if cmd in ["/scalp_on", "/scalp_off", "/intraday_on", "/intraday_off", "/midterm_on", "/midterm_off"]:
-        name = cmd.strip("/").split("_")[0]
+
+    if cmd in ["/scalp_on", "/scalp_off"]:
         state = cmd.strip("/").split("_")[1]
-        cfg.setdefault("modes", {})[name] = state == "on"
-        cfg["mode_only"] = None
+        cfg.setdefault("modes", {})["scalp"] = state == "on"
         save_config(cfg)
-        reply(f"✅ {name} {'açıldı' if state == 'on' else 'kapatıldı'}.")
+        reply(f"Scalp mode {'enabled' if state == 'on' else 'disabled'}.")
         return
 
     if cmd == "/filters":
@@ -460,11 +430,6 @@ def handle_command_message(message, send_telegram):
         save_config(cfg)
         reply("⚠️ Volume filtresi kapatıldı.")
         return
-
-    if cmd == "/set_min_rr":
-        if len(parts) < 2:
-            reply("Kullanım: /set_min_rr 1.5")
-            return
         value = _safe_float(parts[1])
         if value is None or value <= 0:
             reply("Geçersiz RR değeri.")
@@ -474,7 +439,7 @@ def handle_command_message(message, send_telegram):
         reply(f"✅ Minimum RR: {value}")
         return
 
-    if cmd in ["/symbols", "/watchlist"]:
+    if cmd == "/watchlist":
         symbols = cfg.get("watchlist", {}).get("symbols", [])
         if symbols:
             reply(
@@ -531,10 +496,6 @@ def handle_command_message(message, send_telegram):
         cfg["watchlist"]["symbols"] = [s for s in cfg["watchlist"]["symbols"] if s != symbol]
         save_config(cfg)
         reply(f"🗑 Sembol çıkarıldı: {symbol}")
-        return
-
-    if cmd == "/last_signal":
-        reply(get_last_signal())
         return
 
     if cmd == "/performance_today":

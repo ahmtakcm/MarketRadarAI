@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import os
@@ -22,7 +22,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "filters": {
         "fake_breakout_filter": True,
         "volume_confirmation": True,
-        "min_rr": 1.5,
         "min_volume": None,
         "fake_sensitivity": "medium",
         "min_trend_strength": "medium",
@@ -69,7 +68,7 @@ def load_config() -> Dict[str, Any]:
         return dict(DEFAULT_CONFIG)
 
     try:
-        # utf-8-sig: PowerShell/Notepad BOM sorununu güvenli çözer.
+        # utf-8-sig: PowerShell/Notepad BOM sorununu gÃ¼venli Ã§Ã¶zer.
         with CONFIG_PATH.open("r", encoding="utf-8-sig") as f:
             data = json.load(f)
     except Exception:
@@ -100,3 +99,4 @@ def get_active_modes(config: Dict[str, Any]) -> list[str]:
 
 def normalize_symbol(symbol: str) -> str:
     return str(symbol or "").upper().strip()
+
