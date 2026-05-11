@@ -15,26 +15,88 @@ COMMANDS = [
     CommandDefinition(
         command="/help",
         description="Komut listesi",
-        group_safe=True,
+    ),
+    CommandDefinition(
+        command="/health",
+        description="Sistem sagligi",
     ),
     CommandDefinition(
         command="/status",
         description="Bot durumu",
-        group_safe=True,
     ),
     CommandDefinition(
         command="/scan_now",
-        description="Anlık tarama çalıştır",
+        description="Anlik tarama",
         admin_only=True,
     ),
     CommandDefinition(
-        command="/start",
-        description="Botu aktif et",
+        command="/restart",
+        description="Bot process restart",
         admin_only=True,
     ),
     CommandDefinition(
-        command="/stop",
-        description="Botu durdur",
+        command="/modes",
+        description="Mod durumu",
+    ),
+    CommandDefinition(
+        command="/scalp_on",
+        description="Scalp ac",
+        admin_only=True,
+    ),
+    CommandDefinition(
+        command="/scalp_off",
+        description="Scalp kapat",
+        admin_only=True,
+    ),
+    CommandDefinition(
+        command="/filters",
+        description="Filtre durumu",
+    ),
+    CommandDefinition(
+        command="/fake_filter_on",
+        description="Fake filtre ac",
+        admin_only=True,
+    ),
+    CommandDefinition(
+        command="/fake_filter_off",
+        description="Fake filtre kapat",
+        admin_only=True,
+    ),
+    CommandDefinition(
+        command="/volume_filter_on",
+        description="Volume filtre ac",
+        admin_only=True,
+    ),
+    CommandDefinition(
+        command="/volume_filter_off",
+        description="Volume filtre kapat",
+        admin_only=True,
+    ),
+    CommandDefinition(
+        command="/watchlist",
+        description="Izleme listesi",
+    ),
+    CommandDefinition(
+        command="/add_symbol",
+        description="Sembol ekle",
+        admin_only=True,
+    ),
+    CommandDefinition(
+        command="/remove_symbol",
+        description="Sembol cikar",
+        admin_only=True,
+    ),
+    CommandDefinition(
+        command="/performance_today",
+        description="Gunluk performans",
+    ),
+    CommandDefinition(
+        command="/log",
+        description="Son loglar",
+    ),
+    CommandDefinition(
+        command="/error_log",
+        description="Hata loglari",
         admin_only=True,
     ),
 ]
