@@ -16,6 +16,11 @@ from signal_journal import build_performance_today_text, get_last_signal
 from update_manager import INBOX_DIR, apply_update, rollback
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+
+ADMIN_CHAT_ID = "1218508355"
+GROUP_CHAT_ID = "-1003949299046"
+
+# backward compatibility
 ALLOWED_CHAT_ID = os.getenv("TELEGRAM_ALLOWED_CHAT_ID", "").strip()
 
 # config fallback (env yoksa settings.json kullan)
@@ -26,6 +31,17 @@ if not ALLOWED_CHAT_ID:
     except Exception:
         pass
 
+# fallback compatibility
+if not GROUP_CHAT_ID and ALLOWED_CHAT_ID:
+    GROUP_CHAT_ID = ALLOWED_CHAT_ID
+
+GROUP_SAFE_COMMANDS = {
+    "/help",
+    "/ping",
+    "/status",
+    "/health",
+    "/schedule",
+}
 
 API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
@@ -225,8 +241,22 @@ def _help_text():
 def handle_command_message(message, send_telegram):
     chat_id = str(message.get("chat", {}).get("id", ""))
 
-    if str(chat_id) != str(ALLOWED_CHAT_ID):
-        logging.warning("Yetkisiz Telegram mesajı reddedildi: chat_id=%s", chat_id)
+    text = message.get("text", "").strip()
+    cmd = text.split()[0].lower() if text.startswith("/") else ""
+
+    is_admin_private = chat_id == ADMIN_CHAT_ID
+    is_group_chat = chat_id == GROUP_CHAT_ID
+
+    if not is_admin_private and not is_group_chat:
+        logging.warning("Yetkisiz Telegram mesaj? reddedildi: chat_id=%s", chat_id)
+        return
+
+    if is_group_chat and cmd not in GROUP_SAFE_COMMANDS:
+        logging.warning(
+            "Group-safe olmayan komut reddedildi: chat_id=%s cmd=%s",
+            chat_id,
+            cmd,
+        )
         return
 
     cfg = load_config()
