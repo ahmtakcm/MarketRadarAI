@@ -339,6 +339,10 @@ def handle_command_message(message, send_telegram):
         reply("Bilinmeyen komut. /help yaz.")
         return
 
+    if cmd == "/help":
+        reply(_help_text())
+        return
+
     if cmd == "/health":
         reply(build_health_text())
         return
