@@ -229,20 +229,11 @@ def maybe_refresh_symbols(current_symbols, degraded, last_refresh, last_degraded
 
 
 def bot_allowed_to_scan():
-    cfg = load_config()
-
-    if not cfg.get("bot_active", True):
-        return False
-
-    if cfg.get("kill_switch", False):
-        return False
-
     return True
 
 
 def is_quiet_mode():
-    cfg = load_config()
-    return bool(cfg.get("notifications", {}).get("quiet_mode", False))
+    return False
 
 
 def consume_force_scan_request():

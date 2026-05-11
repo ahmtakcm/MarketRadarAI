@@ -35,12 +35,9 @@ if not GROUP_CHAT_ID and ALLOWED_CHAT_ID:
 
 ADMIN_PRIVATE_COMMANDS = {
     "/help",
-    "/ping",
     "/health",
     "/status",
     "/scan_now",
-    "/start",
-    "/stop",
     "/restart",
     "/modes",
     "/scalp_on",
@@ -62,28 +59,25 @@ ADMIN_PRIVATE_COMMANDS = {
 GROUP_SAFE_COMMANDS = set()
 
 BOTFATHER_COMMANDS = [
-    ("help", "help"),
-    ("ping", "ping"),
-    ("health", "health"),
-    ("status", "status"),
-    ("scan_now", "scan_now"),
-    ("start", "start"),
-    ("stop", "stop"),
-    ("restart", "restart"),
-    ("modes", "modes"),
-    ("scalp_on", "scalp_on"),
-    ("scalp_off", "scalp_off"),
-    ("filters", "filters"),
-    ("fake_filter_on", "fake_filter_on"),
-    ("fake_filter_off", "fake_filter_off"),
-    ("volume_filter_on", "volume_filter_on"),
-    ("volume_filter_off", "volume_filter_off"),
-    ("watchlist", "watchlist"),
-    ("add_symbol", "add_symbol"),
-    ("remove_symbol", "remove_symbol"),
-    ("performance_today", "performance_today"),
-    ("log", "log"),
-    ("error_log", "error_log"),
+    ("help", "Komut listesi"),
+    ("health", "Sistem sagligi"),
+    ("status", "Bot durumu"),
+    ("scan_now", "Anlik tarama"),
+    ("restart", "Bot process restart"),
+    ("modes", "Mod durumu"),
+    ("scalp_on", "Scalp ac"),
+    ("scalp_off", "Scalp kapat"),
+    ("filters", "Filtre durumu"),
+    ("fake_filter_on", "Fake filtre ac"),
+    ("fake_filter_off", "Fake filtre kapat"),
+    ("volume_filter_on", "Volume filtre ac"),
+    ("volume_filter_off", "Volume filtre kapat"),
+    ("watchlist", "Izleme listesi"),
+    ("add_symbol", "Sembol ekle"),
+    ("remove_symbol", "Sembol cikar"),
+    ("performance_today", "Gunluk performans"),
+    ("log", "Son loglar"),
+    ("error_log", "Hata loglari"),
 ]
 
 API = f"https://api.telegram.org/bot{BOT_TOKEN}"
@@ -235,31 +229,26 @@ def build_status():
     midterm = bool(cfg["modes"].get("midterm"))
 
     if (not scalp) and intraday and midterm:
-        mode_note = "Normal düzen: Intraday + Midterm aktif. Scalp manuel kapalı."
+        mode_note = "Normal duzen: Intraday + Midterm aktif. Scalp manuel kapali."
     elif scalp and intraday and midterm:
         mode_note = "Scalp dahil 3 mod aktif."
     else:
-        mode_note = "Açık modlara göre çalışıyor."
+        mode_note = "Acik modlara gore calisiyor."
 
     return (
-        "📊 BOT DURUMU\n\n"
-        f"Bot aktif: {'✅' if cfg.get('bot_active') else '❌'}\n"
-        f"Kill switch: {'🚨 AÇIK' if cfg.get('kill_switch') else '✅ Kapalı'}\n"
-        f"Sessiz mod: {'🔕 Açık' if cfg.get('notifications', {}).get('quiet_mode') else '🔔 Kapalı'}\n\n"
-        "🧭 MODLAR\n"
-        f"Scalp: {'✅' if scalp else '❌'}\n"
-        f"Intraday: {'✅' if intraday else '❌'}\n"
-        f"Midterm: {'✅' if midterm else '❌'}\n"
-        f"Aktif çalışan: {', '.join(active_modes) or 'Yok'}\n"
+        "BOT DURUMU\n\n"
+        "Ping: pong\n\n"
+        "MODLAR\n"
+        f"Scalp: {'ON' if scalp else 'OFF'}\n"
+        f"Intraday: {'ON' if intraday else 'OFF'}\n"
+        f"Midterm: {'ON' if midterm else 'OFF'}\n"
+        f"Aktif calisan: {', '.join(active_modes) or 'Yok'}\n"
         f"Not: {mode_note}\n\n"
-        "🧪 FİLTRELER\n"
-        f"Fake breakout: {'✅' if cfg['filters'].get('fake_breakout_filter') else '❌'}\n"
-        f"Volume: {'✅' if cfg['filters'].get('volume_confirmation') else '❌'}\n"
-        f"Min RR: {cfg['filters'].get('min_rr')}\n"
-        f"Cooldown: {cfg['limits'].get('cooldown_minutes')} dk\n"
-        f"Notify only: {cfg['notifications'].get('notify_only')}"
+        "FILTRELER\n"
+        f"Fake breakout: {'ON' if cfg['filters'].get('fake_breakout_filter') else 'OFF'}\n"
+        f"Volume: {'ON' if cfg['filters'].get('volume_confirmation') else 'OFF'}\n"
+        f"Cooldown: {cfg['limits'].get('cooldown_minutes')} dk"
     )
-
 
 
 def _read_tail(path: Path, lines=40) -> str:
@@ -271,33 +260,42 @@ def _read_tail(path: Path, lines=40) -> str:
 
 def _help_text():
     return (
-        "MEXC TARAMA KOMUTLARI\n\n"
+        "MEXC TARAMA KOMUTLARI\n"
+        "====================\n\n"
 
-        "Durum\n"
-        "/status /ping /health /log /error_log\n\n"
+        "[1] DURUM\n"
+        "/status      Bot durumu + ping\n"
+        "/health      Sistem sagligi\n"
+        "/log         Son loglar\n"
+        "/error_log   Hata loglari\n\n"
 
-        "Tarama\n"
-        "/scan_now\n\n"
+        "[2] TARAMA\n"
+        "/scan_now    Aktif modlari mum kapanisi beklemeden tara\n\n"
 
-        "Bot\n"
-        "/start /stop /restart\n\n"
+        "[3] BOT\n"
+        "/restart     Bot process yeniden baslat\n\n"
 
-        "Modlar\n"
-        "/modes /scalp_on /scalp_off\n\n"
+        "[4] MODLAR\n"
+        "/modes       Aktif modlari goster\n"
+        "/scalp_on    Scalp modunu ac\n"
+        "/scalp_off   Scalp modunu kapat\n\n"
 
-        "Filtreler\n"
-        "/filters\n"
-        "/fake_filter_on /fake_filter_off\n"
-        "/volume_filter_on /volume_filter_off\n\n"
+        "[5] FILTRELER\n"
+        "/filters             Filtre durumunu goster\n"
+        "/fake_filter_on      Fake breakout filtresini ac\n"
+        "/fake_filter_off     Fake breakout filtresini kapat\n"
+        "/volume_filter_on    Volume filtresini ac\n"
+        "/volume_filter_off   Volume filtresini kapat\n\n"
 
-        "Semboller\n"
-        "/watchlist\n"
-        "/add_symbol BTCUSDT /remove_symbol BTCUSDT\n\n"
+        "[6] SEMBOLLER\n"
+        "/watchlist              Izleme listesini goster\n"
+        "/add_symbol BTCUSDT     Sembol ekle\n"
+        "/remove_symbol BTCUSDT  Sembol cikar\n\n"
 
-        "Rapor\n"
-        "/performance_today\n\n"
+        "[7] RAPOR\n"
+        "/performance_today   Gunluk sinyal raporu\n\n"
 
-        "Not: /scan_now aktif modlari mum kapanisi beklemeden anlik tarar."
+        "Not: Grup komutlari kapali. Tum komutlar admin private chat icindir."
     )
 
 
@@ -341,16 +339,6 @@ def handle_command_message(message, send_telegram):
         reply("Bilinmeyen komut. /help yaz.")
         return
 
-
-
-    if cmd == "/help":
-        reply(_help_text())
-        return
-
-    if cmd == "/ping":
-        reply("🏓 pong")
-        return
-
     if cmd == "/health":
         reply(build_health_text())
         return
@@ -362,40 +350,25 @@ def handle_command_message(message, send_telegram):
     if cmd == "/scan_now":
         cfg.setdefault("runtime", {})["force_scan_once"] = True
         save_config(cfg)
-        reply("⚡ Manuel tarama başlatıldı. Bekleme kesildi; bot uygunsa hemen taramaya geçiyor.")
-        return
-
-    if cmd == "/start":
-        cfg["bot_active"] = True
-        cfg["kill_switch"] = False
-        cfg.setdefault("notifications", {})["quiet_mode"] = False
-        save_config(cfg)
-        reply("✅ Bot başlatıldı. Sinyal üretimi aktif.")
-        return
-
-    if cmd == "/stop":
-        cfg["bot_active"] = False
-        save_config(cfg)
-        reply("⛔ Bot durduruldu. Sinyal üretimi kapalı.")
+        reply("Anlik tarama tetiklendi. Aktif modlar icin mum kapanisi beklenmeden tarama baslatiliyor.")
         return
 
     if cmd == "/restart":
-        reply("♻️ Bot yeniden başlatılıyor...")
+        reply("Bot process yeniden baslatiliyor...")
         _restart_process()
         return
 
     if cmd == "/modes":
         active_modes = get_active_modes(cfg)
         reply(
-            "🧭 MODLAR\n\n"
-            f"Scalp: {'✅' if cfg['modes'].get('scalp') else '❌'}\n"
-            f"Intraday: {'✅' if cfg['modes'].get('intraday') else '❌'}\n"
-            f"Midterm: {'✅' if cfg['modes'].get('midterm') else '❌'}\n\n"
-            f"Aktif çalışan: {', '.join(active_modes) or 'Yok'}\n"
-            "Detaylı zaman planı: /schedule"
+            "MODLAR\n\n"
+            f"Scalp: {'ON' if cfg['modes'].get('scalp') else 'OFF'}\n"
+            f"Intraday: {'ON' if cfg['modes'].get('intraday') else 'OFF'}\n"
+            f"Midterm: {'ON' if cfg['modes'].get('midterm') else 'OFF'}\n\n"
+            f"Aktif calisan: {', '.join(active_modes) or 'Yok'}\n"
+            "Not: /scan_now aktif modlari anlik tarar."
         )
         return
-
 
     if cmd in ["/scalp_on", "/scalp_off"]:
         state = cmd.strip("/").split("_")[1]
@@ -406,43 +379,34 @@ def handle_command_message(message, send_telegram):
 
     if cmd == "/filters":
         reply(
-            "🧪 FİLTRELER\n\n"
-            f"Fake breakout: {'✅' if cfg['filters'].get('fake_breakout_filter') else '❌'}\n"
-            f"Volume: {'✅' if cfg['filters'].get('volume_confirmation') else '❌'}\n"
-            f"Min RR: {cfg['filters'].get('min_rr')}"
+            "FILTRELER\n\n"
+            f"Fake breakout: {'ON' if cfg['filters'].get('fake_breakout_filter') else 'OFF'}\n"
+            f"Volume: {'ON' if cfg['filters'].get('volume_confirmation') else 'OFF'}"
         )
         return
 
     if cmd == "/fake_filter_on":
         cfg.setdefault("filters", {})["fake_breakout_filter"] = True
         save_config(cfg)
-        reply("✅ Fake breakout filtresi açıldı.")
+        reply("Fake breakout filtresi acildi.")
         return
 
     if cmd == "/fake_filter_off":
         cfg.setdefault("filters", {})["fake_breakout_filter"] = False
         save_config(cfg)
-        reply("⚠️ Fake breakout filtresi kapatıldı.")
+        reply("Fake breakout filtresi kapatildi.")
         return
 
     if cmd == "/volume_filter_on":
         cfg.setdefault("filters", {})["volume_confirmation"] = True
         save_config(cfg)
-        reply("✅ Volume filtresi açıldı.")
+        reply("Volume filtresi acildi.")
         return
 
     if cmd == "/volume_filter_off":
         cfg.setdefault("filters", {})["volume_confirmation"] = False
         save_config(cfg)
-        reply("⚠️ Volume filtresi kapatıldı.")
-        return
-        value = _safe_float(parts[1])
-        if value is None or value <= 0:
-            reply("Geçersiz RR değeri.")
-            return
-        cfg.setdefault("filters", {})["min_rr"] = value
-        save_config(cfg)
-        reply(f"✅ Minimum RR: {value}")
+        reply("Volume filtresi kapatildi.")
         return
 
     if cmd == "/watchlist":
