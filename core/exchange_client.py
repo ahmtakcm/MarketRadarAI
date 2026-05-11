@@ -7,7 +7,7 @@ MEXC_BASE = "https://contract.mexc.com"
 
 INTERVAL_MAP = {
     "1m": "Min1",
-    "3m": "Min5",      # MEXC contract tarafında Min3 yoksa en yakın güvenli fallback
+    "3m": "Min5",  # MEXC has no Min3; use Min5 fallback
     "5m": "Min5",
     "15m": "Min15",
     "30m": "Min30",
@@ -15,6 +15,18 @@ INTERVAL_MAP = {
     "4h": "Hour4",
     "1d": "Day1",
     "1w": "Week1",
+}
+
+INTERVAL_SECONDS = {
+    "1m": 60,
+    "3m": 5 * 60,
+    "5m": 5 * 60,
+    "15m": 15 * 60,
+    "30m": 30 * 60,
+    "1h": 60 * 60,
+    "4h": 4 * 60 * 60,
+    "1d": 24 * 60 * 60,
+    "1w": 7 * 24 * 60 * 60,
 }
 
 KLINE_LIMITS = {
@@ -60,10 +72,10 @@ def _get_json(url, params=None, retries=3, timeout=15):
 
         except Exception as e:
             last_error = e
-            logging.warning("MEXC API başarısız deneme %s/%s | %s", attempt, retries, e)
+            logging.warning("MEXC API request failed attempt %s/%s | %s", attempt, retries, e)
             time.sleep(1.5)
 
-    raise RuntimeError(f"MEXC API isteği başarısız oldu | url={url} | params={params} | hata={last_error}")
+    raise RuntimeError(f"MEXC API request failed | url={url} | params={params} | error={last_error}")
 
 
 def get_valid_futures_symbols():
@@ -108,9 +120,21 @@ def fetch_klines(symbol, interval, limit):
 
     n = min(len(times), len(opens), len(highs), len(lows), len(closes), len(vols))
     rows = []
+    interval_seconds = INTERVAL_SECONDS.get(interval)
+    if not interval_seconds:
+        raise ValueError(f"Unsupported MEXC interval seconds: {interval}")
+
+    now_ms = int(time.time() * 1000)
 
     for i in range(n):
         open_time_ms = int(times[i]) * 1000
+        close_time_ms = open_time_ms + (interval_seconds * 1000) - 1
+
+        # MEXC can include the currently forming candle. The scanner must only
+        # consume closed candles to avoid premature signals.
+        if close_time_ms >= now_ms:
+            continue
+
         rows.append([
             open_time_ms,
             str(opens[i]),
@@ -118,7 +142,7 @@ def fetch_klines(symbol, interval, limit):
             str(lows[i]),
             str(closes[i]),
             str(vols[i]),
-            open_time_ms,
+            close_time_ms,
             "0",
             0,
             "0",
