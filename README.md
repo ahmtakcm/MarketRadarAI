@@ -21,11 +21,13 @@ The repository name can stay `mexc-tarama-bot` for now, but user-facing project 
 
 - `settings.json`: local machine settings and Telegram credentials. This file is ignored by git.
 - `settings.example.json`: safe template for local settings.
-- `remote_config.json`: mutable runtime/user config used by Telegram commands and scanner controls.
+- `remote_config.example.json`: safe runtime config template.
+- `remote_config.json`: legacy runtime config seed kept for backward compatibility.
+- `runtime/remote_config.json`: mutable runtime/user config used by Telegram commands and scanner controls.
 - `data/`: runtime state and signal/performance journals.
 - `storage/`: runtime locks and cached exchange symbol data.
 - `logs/`: runtime logs.
 
-See `docs/RUNTIME_BEHAVIOR.md` for the current behavior map and deferred hardening work.
+See `docs/RUNTIME_BEHAVIOR.md` and `docs/ARCHITECTURE.md` for the current behavior map, persistence inventory, and deferred hardening work.
 
 

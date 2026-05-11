@@ -7,14 +7,14 @@ import threading
 import time
 from pathlib import Path
 
-from config import APP_LOG_PATH, REQUESTED_SYMBOLS
+from config import APP_LOG_PATH, REQUESTED_SYMBOLS, STATE_FILE_PATH
 from core.exchange_client import fetch_klines, get_kline_limit
 from core.performance_tracker import finalize_pending_signals
 from core.scanner import build_signal_message, get_active_symbols, get_daily_commentaries
 from core.scheduler import next_sleep_seconds
 from core.state_store import load_state, save_state
 from notifiers.telegram_notifier import send_telegram
-from remote_config import load_config, save_config
+from remote_config import get_active_modes, get_config_path, load_config, save_config
 from signal_journal import append_signal_message, set_last_signal
 from single_instance import single_instance
 from telegram_commands import poll_telegram_commands
@@ -243,6 +243,10 @@ def consume_force_scan_request():
         if runtime.get("force_scan_once"):
             runtime["force_scan_once"] = False
             save_config(cfg)
+            logging.info(
+                "Telegram /scan_now force_scan_once consumed | active_modes=%s",
+                ",".join(get_active_modes(cfg)) or "-",
+            )
             logging.info("Telegram /scan_now isteği alındı; tarama hemen çalıştırılacak")
             return True
     except Exception as e:
@@ -321,6 +325,15 @@ def start_telegram_command_thread():
 
 def main():
     state = load_state()
+    cfg = load_config()
+
+    logging.info(
+        "MarketRadarAI startup | exchange=MEXC | active_modes=%s | watchlist_count=%s | state_path=%s | runtime_config_path=%s",
+        ",".join(get_active_modes(cfg)) or "-",
+        len(_safe_symbols(cfg.get("watchlist", {}).get("symbols", []))),
+        STATE_FILE_PATH,
+        get_config_path(),
+    )
 
     logging.info("Bot başladı")
     _send_lifecycle(

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "bot_active": true,
+  "kill_switch": false,
+  "explain_signals": true,
+  "modes": {
+    "scalp": false,
+    "intraday": true,
+    "midterm": true
+  },
+  "mode_only": null,
+  "risk_level": "normal",
+  "filters": {
+    "fake_breakout_filter": true,
+    "volume_confirmation": true,
+    "min_volume": null,
+    "fake_sensitivity": "medium",
+    "min_trend_strength": "medium"
+  },
+  "limits": {
+    "cooldown_minutes": 30,
+    "symbol_cooldown_minutes": {},
+    "max_signals_per_day": 20,
+    "max_same_symbol_per_day": 3
+  },
+  "watchlist": {
+    "symbols": [],
+    "watched_symbols": []
+  },
+  "notifications": {
+    "notify_only": "all"
+  },
+  "update": {
+    "pending_zip": null,
+    "last_status": "idle"
+  },
+  "runtime": {
+    "last_restart_request": null,
+    "last_update_apply": null,
+    "force_scan_once": false
+  }
+}
