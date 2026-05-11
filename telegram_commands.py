@@ -271,29 +271,35 @@ def _read_tail(path: Path, lines=40) -> str:
 
 def _help_text():
     return (
-        "🧭 MEXC TARAMA KOMUTLARI\n\n"
+        "MEXC TARAMA KOMUTLARI\n\n"
 
-        "📊 Durum\n"
+        "Durum\n"
         "/status /ping /health /log /error_log\n\n"
 
-        "⏱ Tarama\n"
-        "🤖 Bot\n"
+        "Tarama\n"
+        "/scan_now\n\n"
+
+        "Bot\n"
         "/start /stop /restart\n\n"
 
-        "🧭 Modlar\n"
+        "Modlar\n"
         "/modes /scalp_on /scalp_off\n\n"
 
-        "🧪 Filtreler\n"
+        "Filtreler\n"
+        "/filters\n"
         "/fake_filter_on /fake_filter_off\n"
         "/volume_filter_on /volume_filter_off\n\n"
 
-        "📌 Semboller\n"
+        "Semboller\n"
+        "/watchlist\n"
         "/add_symbol BTCUSDT /remove_symbol BTCUSDT\n\n"
 
-        "📈 Analiz\n"
-        "📦 Güncelleme\n"
-        "Not: Tarama mum kapanışına göre çalışır. /schedule yaz."
+        "Rapor\n"
+        "/performance_today\n\n"
+
+        "Not: /scan_now aktif modlari mum kapanisi beklemeden anlik tarar."
     )
+
 
 def handle_command_message(message, send_telegram):
     chat_id = str(message.get("chat", {}).get("id", ""))
