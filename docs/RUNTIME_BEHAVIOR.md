@@ -41,13 +41,15 @@ Group commands are currently disabled.
 
 - Static/local config: `settings.json`.
 - Safe example config: `settings.example.json`.
-- Mutable runtime/user config: `remote_config.json`.
+- Mutable runtime/user config: `runtime/remote_config.json`.
+- Legacy runtime/user config seed: `remote_config.json`.
 - Scanner state: `data/state.json`.
 - Signal journals: `data/signal_journal.jsonl`, `data/signals_log.jsonl`, and `data/performance_log.jsonl`.
 - Symbol cache: `storage/last_active_symbols.json`.
 - Process lock: `storage/alarm_bot.lock`.
 - Telegram offset: `telegram_offset.txt`.
 - Logs: `logs/app.log`.
+- Manual backups: `backups/`.
 
 ## Deployment Rules
 
@@ -66,6 +68,6 @@ These items are intentionally out of scope for this preparation PR:
 - Move Telegram polling ownership out of `main.py`.
 - Introduce a generic exchange adapter interface.
 - Rename repository/package paths.
-- Stop tracking `remote_config.json` or migrate it to a generated local file.
+- Remove the legacy `remote_config.json` seed after production has safely migrated to `runtime/remote_config.json`.
 - Change visible Telegram command text or command names.
 - Change scanner scheduling, signal generation, or watchlist semantics.

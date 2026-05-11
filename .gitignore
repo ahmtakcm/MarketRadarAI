@@ -14,12 +14,16 @@ telegram_offset.txt
 *.tar.gz
 # local config
 settings.json
+runtime/
+remote_config.json.broken
+remote_config.tmp
 
 # temp / debug
 mexc_current_symbols.txt
 
 # old backups
 *_before_*
+backups/
 
 # data klasörü
 data/
@@ -28,3 +32,4 @@ data/
 storage/alarm_bot.lock
 storage/last_active_symbols.json
 .venv/
+tests/_tmp_runtime_tests/
