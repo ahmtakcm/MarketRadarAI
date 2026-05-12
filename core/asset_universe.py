@@ -95,7 +95,7 @@ def format_asset_resolution_log(resolution: AssetResolution) -> str:
 
 
 def _format_resolution_reasons(reasons: dict[str, int]) -> str:
-    ordered_keys = ["exact", "alias", "discovered", "ambiguous", "unsupported", "empty", "alias_target_missing"]
+    ordered_keys = ["exact", "alias", "unsupported", "empty", "alias_target_missing"]
     return ",".join(
         f"{key}:{reasons[key]}"
         for key in ordered_keys

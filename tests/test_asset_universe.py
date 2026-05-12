@@ -69,11 +69,10 @@ def test_asset_universe_log_includes_symbol_resolution_reason_counts():
     assert resolution.resolution_reasons == {
         "exact": 1,
         "alias": 1,
-        "ambiguous": 1,
-        "unsupported": 1,
+        "unsupported": 2,
     }
 
     log = format_asset_resolution_log(resolution)
-    assert "resolution_reasons=exact:1,alias:1,ambiguous:1,unsupported:1" in log
+    assert "resolution_reasons=exact:1,alias:1,unsupported:2" in log
 
 

@@ -23,6 +23,7 @@ def test_symbol_resolver_maps_known_display_symbols_to_mexc_symbols():
         "SILVERUSDT",
         "UKOILUSDT",
         "USOILUSDT",
+        "COPPERUSDT",
         "SPX500USDT",
         "QQQSTOCKUSDT",
         "TESLAUSDT",
@@ -31,13 +32,21 @@ def test_symbol_resolver_maps_known_display_symbols_to_mexc_symbols():
     }
 
     cases = {
+        "GOLD": "XAUTUSDT",
         "GOLD(XAUT)USDT": "XAUTUSDT",
+        "SILVER": "SILVERUSDT",
         "SILVER(XAG)USDT": "SILVERUSDT",
+        "COPPER": "COPPERUSDT",
+        "COPPER(XCU)USDT": "COPPERUSDT",
         "OIL(BRENT)USDT": "UKOILUSDT",
         "OIL(WTI)USDT": "USOILUSDT",
+        "SP500": "SPX500USDT",
         "SP500USDT": "SPX500USDT",
+        "QQQ": "QQQSTOCKUSDT",
         "QQQUSDT": "QQQSTOCKUSDT",
+        "TSLA": "TESLAUSDT",
         "TSLAUSDT": "TESLAUSDT",
+        "NVDA": "NVIDIAUSDT",
         "NVDAUSDT": "NVIDIAUSDT",
         "HK50": "HK50USDT",
     }
@@ -95,7 +104,7 @@ def test_symbol_resolver_matches_common_stock_shortcodes_without_usdt_suffix():
     assert nvda.reason == "alias"
 
 
-def test_symbol_resolver_can_discover_single_matching_exchange_symbol():
+def test_symbol_resolver_uses_explicit_alias_without_guessing():
     resolver = SymbolResolver()
 
     result = resolver.resolve(
@@ -111,7 +120,7 @@ def test_symbol_resolver_can_discover_single_matching_exchange_symbol():
     assert result.reason == "alias"
 
 
-def test_symbol_resolver_does_not_guess_when_multiple_candidates_exist():
+def test_symbol_resolver_does_not_guess_from_partial_matches():
     resolver = SymbolResolver()
 
     result = resolver.resolve(
@@ -124,5 +133,5 @@ def test_symbol_resolver_does_not_guess_when_multiple_candidates_exist():
 
     assert result.resolved is None
     assert result.supported is False
-    assert result.reason == "ambiguous"
+    assert result.reason == "unsupported"
 
