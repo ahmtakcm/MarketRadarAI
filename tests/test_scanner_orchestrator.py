@@ -1,4 +1,5 @@
 import builtins
+import importlib
 import sys
 from pathlib import Path
 
@@ -6,6 +7,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from core import scanner_orchestrator
 from core.scanner_orchestrator import ScannerRuntime
+
+
+class FakeMarketDataService:
+    def __init__(self):
+        self.fetch_calls = []
+
+    def fetch_klines(self, symbol, interval, limit):
+        self.fetch_calls.append((symbol, interval, limit))
+        return []
+
+    def get_kline_limit(self, interval):
+        return 5
+
+    def get_valid_futures_symbols(self):
+        return ["BTCUSDT", "TESLAUSDT"]
 
 
 def _runtime():
@@ -41,6 +57,23 @@ def test_orchestrator_requested_symbols_falls_back_without_config(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", guarded_import)
 
     assert scanner_orchestrator.get_requested_symbols() == []
+
+
+def test_scanner_import_with_injected_market_data_service_does_not_require_settings(monkeypatch):
+    original_import = builtins.__import__
+    sys.modules.pop("config", None)
+    sys.modules.pop("core.scanner", None)
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "config":
+            raise FileNotFoundError("settings.json missing")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+
+    scanner = importlib.import_module("core.scanner")
+
+    assert scanner.get_active_symbols(FakeMarketDataService()) == ["BTCUSDT", "TESLAUSDT"]
 
 
 def test_orchestrator_watchlist_filter_keeps_supported_and_logs_unsupported(monkeypatch, caplog):
@@ -80,8 +113,8 @@ def test_orchestrator_scan_cycle_isolates_duplicate_signal_delivery(monkeypatch)
     state = {"last_sent_message": "existing"}
 
     monkeypatch.setattr(scanner_orchestrator, "load_config", lambda: {"modes": {"scalp": True}})
-    monkeypatch.setattr(scanner_orchestrator, "build_signal_message", lambda _symbols, _state: "existing")
-    monkeypatch.setattr(scanner_orchestrator, "get_daily_commentaries", lambda _symbols, _state: [])
+    monkeypatch.setattr(scanner_orchestrator, "build_signal_message", lambda _symbols, _state, _service: "existing")
+    monkeypatch.setattr(scanner_orchestrator, "get_daily_commentaries", lambda _symbols, _state, _service: [])
     monkeypatch.setattr(scanner_orchestrator, "finalize_pending_signals", lambda *_args: None)
     monkeypatch.setattr(scanner_orchestrator, "save_state", lambda value: saved_states.append(dict(value)))
 
@@ -93,3 +126,39 @@ def test_orchestrator_scan_cycle_isolates_duplicate_signal_delivery(monkeypatch)
 
     assert sent == []
     assert saved_states == [{"last_sent_message": "existing"}]
+
+
+def test_orchestrator_uses_injected_market_data_service_for_symbol_discovery():
+    service = FakeMarketDataService()
+    runtime = ScannerRuntime(
+        send_telegram=lambda _text: None,
+        poll_telegram_commands=lambda _send: None,
+        market_data_service=service,
+    )
+
+    assert runtime._fetch_live_symbols_once() == ["BTCUSDT", "TESLAUSDT"]
+
+
+def test_unknown_symbol_does_not_reach_market_data_service(monkeypatch):
+    service = FakeMarketDataService()
+    runtime = ScannerRuntime(
+        send_telegram=lambda _text: None,
+        poll_telegram_commands=lambda _send: None,
+        market_data_service=service,
+    )
+
+    monkeypatch.setattr(
+        scanner_orchestrator,
+        "load_config",
+        lambda: {"watchlist": {"symbols": ["UNKNOWNUSDT"]}, "modes": {"scalp": True}},
+    )
+    monkeypatch.setattr(scanner_orchestrator, "build_signal_message", lambda _symbols, _state, _service: None)
+    monkeypatch.setattr(scanner_orchestrator, "get_daily_commentaries", lambda _symbols, _state, _service: [])
+    monkeypatch.setattr(scanner_orchestrator, "finalize_pending_signals", lambda *_args: None)
+    monkeypatch.setattr(scanner_orchestrator, "save_state", lambda _state: None)
+
+    symbols = runtime.apply_watchlist_filter(["BTCUSDT", "TESLAUSDT"])
+    runtime.run_scan_cycle({"last_sent_message": None}, symbols)
+
+    assert symbols == []
+    assert service.fetch_calls == []

@@ -9,7 +9,7 @@ from pathlib import Path
 import requests
 
 from core.asset_universe import build_watchlist_text, resolve_asset_universe
-from core.exchange_client import get_valid_futures_symbols
+from core.market_data_service import get_valid_futures_symbols
 from core.symbol_resolver import SymbolResolver
 from health_monitor import build_health_text
 from remote_config import get_active_modes, load_config, normalize_symbol, save_config
@@ -547,7 +547,7 @@ def poll_telegram_commands(send_telegram):
             if message:
                 text = str(message.get("text") or "").strip()
                 if text:
-                    logging.info("Telegram komut alÄ±ndÄ±: %s", text.split()[0])
+                    logging.info("Telegram command received: %s", text.split()[0])
                 handle_command_message(message, send_telegram)
     except Exception as e:
         logging.exception("Telegram komut kontrol hatasÄ±: %s", e)
