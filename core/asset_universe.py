@@ -17,6 +17,7 @@ class AssetResolution:
     exchange: str = "MEXC"
     supported_asset_class: str = SUPPORTED_ASSET_CLASS
     resolved_aliases: dict[str, str] = field(default_factory=dict)
+    resolution_reasons: dict[str, int] = field(default_factory=dict)
 
     @property
     def requested_count(self) -> int:
@@ -58,10 +59,12 @@ def resolve_asset_universe(
     supported: list[str] = []
     unsupported: list[str] = []
     resolved_aliases: dict[str, str] = {}
+    resolution_reasons: dict[str, int] = {}
     seen_supported: set[str] = set()
 
     for symbol in requested:
         resolution = resolver.resolve(symbol, exchange_set)
+        resolution_reasons[resolution.reason] = resolution_reasons.get(resolution.reason, 0) + 1
         if resolution.supported and resolution.resolved:
             if resolution.resolved not in seen_supported:
                 supported.append(resolution.resolved)
@@ -77,6 +80,7 @@ def resolve_asset_universe(
         unsupported=unsupported,
         exchange=exchange,
         resolved_aliases=resolved_aliases,
+        resolution_reasons=resolution_reasons,
     )
 
 
@@ -84,9 +88,19 @@ def format_asset_resolution_log(resolution: AssetResolution) -> str:
     return (
         f"MarketRadarAI asset universe | exchange={resolution.exchange} | "
         f"requested={resolution.requested_count} | supported={resolution.supported_count} | "
-        f"unsupported={resolution.unsupported_count}"
+        f"unsupported={resolution.unsupported_count} | "
+        f"resolution_reasons={_format_resolution_reasons(resolution.resolution_reasons)}"
     )
 
+
+
+def _format_resolution_reasons(reasons: dict[str, int]) -> str:
+    ordered_keys = ["exact", "alias", "discovered", "ambiguous", "unsupported", "empty", "alias_target_missing"]
+    return ",".join(
+        f"{key}:{reasons[key]}"
+        for key in ordered_keys
+        if reasons.get(key)
+    )
 
 def build_watchlist_text(resolution: AssetResolution) -> str:
     lines = [
