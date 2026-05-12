@@ -1,14 +1,15 @@
 # MarketRadarAI Deployment
 
-This repository currently runs in production from `main` under the existing service name
-`mexc-tarama-bot.service`. The repository path may remain `mexc-tarama-bot`; the visible
-product identity is MarketRadarAI.
+This repository currently runs in production from `main` under the legacy service name
+`mexc-tarama-bot.service` and legacy server path `~/mexc-tarama-bot`. The visible product
+identity is MarketRadarAI. The rename must be applied manually in production after this PR is merged.
 
 ## Production Service Checklist
 
 - Service name: `mexc-tarama-bot.service`
 - Recommended description: `MarketRadarAI scanner service`
-- Repo-managed example unit: `deploy/systemd/marketradarai.service.example`
+- Repo-managed target unit: `deploy/systemd/marketradarai.service`
+- Repo-managed compatibility unit: `deploy/systemd/mexc-tarama-bot.service.compat`
 - WorkingDirectory: production checkout path, usually the server `mexc-tarama-bot` directory
 - ExecStart: project virtualenv or Python interpreter running `main.py`
 - Restart policy: prefer `Restart=on-failure`. Avoid `Restart=always` unless intentionally running one-shot jobs.
@@ -69,23 +70,68 @@ same startup, scan, shutdown, and fatal-crash lines should be visible in `journa
 
 ## Safe Service Rename Plan
 
-Do not rename the systemd unit in this PR.
+Do not rename the systemd unit automatically in this PR. Apply the following steps manually on the server.
 
-Future low-risk migration:
+Target:
 
-1. Confirm `main` is deployed and tests pass on the current `mexc-tarama-bot.service`.
-2. Copy `deploy/systemd/marketradarai.service.example` to `/etc/systemd/system/marketradarai.service`.
-3. Update `WorkingDirectory` and `ExecStart` only if the server path changed.
-4. Run `sudo systemctl daemon-reload`.
-5. Stop but do not disable `mexc-tarama-bot.service`.
-6. Start `marketradarai.service`.
-7. Validate journald logs, Telegram `/help`, `/watchlist`, and `/scan_now`.
-8. Disable the old service only after validation.
-9. Keep rollback instructions to re-enable `mexc-tarama-bot.service`.
+- Old service: `mexc-tarama-bot.service`
+- New service: `marketradarai.service`
+- Old path: `/home/ahmtakcm/mexc-tarama-bot`
+- New path: `/home/ahmtakcm/MarketRadarAI`
+- Old GitHub remote: `ahmtakcm/mexc-tarama-bot`
+- Future GitHub remote: `ahmtakcm/MarketRadarAI`
+
+### Preflight
+
+1. Confirm current production is healthy:
+   `sudo systemctl status mexc-tarama-bot.service`
+2. Confirm current logs:
+   `journalctl -u mexc-tarama-bot.service -n 120 --no-pager`
+3. Confirm working tree on server:
+   `cd ~/mexc-tarama-bot && git status --short --branch`
+4. Confirm tests on `main`:
+   `ruff check . && pytest`
+5. Back up runtime config:
+   `mkdir -p ~/marketradarai-migration-backup && cp runtime/remote_config.json ~/marketradarai-migration-backup/remote_config.json.$(date +%Y%m%d%H%M%S)`
+
+### Path And Remote Rename
+
+1. Stop the old service:
+   `sudo systemctl stop mexc-tarama-bot.service`
+2. Rename the directory:
+   `mv ~/mexc-tarama-bot ~/MarketRadarAI`
+3. Enter the new directory:
+   `cd ~/MarketRadarAI`
+4. If the GitHub repository has already been renamed, update remote:
+   `git remote set-url origin git@github.com:ahmtakcm/MarketRadarAI.git`
+5. If the GitHub repository has not been renamed yet, keep the old remote temporarily:
+   `git remote -v`
+6. Verify branch and files:
+   `git status --short --branch`
+
+### Unit Rename
+
+1. Copy the repo-managed target unit:
+   `sudo cp deploy/systemd/marketradarai.service /etc/systemd/system/marketradarai.service`
+2. Verify or edit paths in the unit:
+   `sudo systemctl cat marketradarai.service`
+3. Reload systemd:
+   `sudo systemctl daemon-reload`
+4. Start the new service:
+   `sudo systemctl start marketradarai.service`
+5. Validate:
+   `sudo systemctl status marketradarai.service`
+6. Validate new journal:
+   `journalctl -u marketradarai.service -n 120 --no-pager`
+7. Validate app log continuity:
+   `tail -n 120 logs/app.log`
+8. Telegram smoke test: `/help`, `/status`, `/watchlist`, `/scan_now`.
+9. Disable old service only after validation:
+   `sudo systemctl disable mexc-tarama-bot.service`
 
 ## Repo And Path Rename Plan
 
-Repository and server path rename are not part of this PR.
+Repository and server path rename are prepared by this PR but not applied automatically.
 
 Future low-risk migration:
 
@@ -97,6 +143,42 @@ Future low-risk migration:
 6. Run `systemctl daemon-reload`.
 7. Start the new service and confirm journal continuity.
 8. Roll back by stopping the new service and starting `mexc-tarama-bot.service` from the old path.
+
+## Rollback
+
+If the new service fails:
+
+1. Stop the new unit:
+   `sudo systemctl stop marketradarai.service`
+2. Re-enable or start the old unit:
+   `sudo systemctl start mexc-tarama-bot.service`
+3. If the directory was renamed and old unit paths are still legacy paths, move it back:
+   `mv ~/MarketRadarAI ~/mexc-tarama-bot`
+4. Reload systemd if units were edited:
+   `sudo systemctl daemon-reload`
+5. Validate old service:
+   `sudo systemctl status mexc-tarama-bot.service`
+6. Check old journal:
+   `journalctl -u mexc-tarama-bot.service -n 120 --no-pager`
+
+Rollback must not delete `runtime/remote_config.json`. Restore it only from the preflight backup if the file is missing or corrupt.
+
+## Journal And Log Continuity
+
+Systemd journals are unit-name scoped. After rename, old logs remain under:
+
+- `journalctl -u mexc-tarama-bot.service`
+
+New logs appear under:
+
+- `journalctl -u marketradarai.service`
+
+Application file logs remain in the project path:
+
+- old path: `/home/ahmtakcm/mexc-tarama-bot/logs/app.log`
+- new path: `/home/ahmtakcm/MarketRadarAI/logs/app.log`
+
+If the directory is moved rather than freshly cloned, file log continuity is preserved in the moved `logs/` directory.
 
 ## Deferred
 
