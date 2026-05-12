@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from pathlib import Path
@@ -49,10 +50,7 @@ class SingleInstance:
             msvcrt.locking(self._fh.fileno(), msvcrt.LK_NBLCK, 1)
             self._locked = True
         except OSError:
-            print(
-                f"{self.name} zaten calisiyor. Yeni kopya baslatilmadi. Lock: {self.lock_path}",
-                flush=True,
-            )
+            self._exit_existing_instance()
             try:
                 self._fh.close()
             finally:
@@ -67,15 +65,17 @@ class SingleInstance:
             fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             self._locked = True
         except OSError:
-            print(
-                f"{self.name} zaten calisiyor. Yeni kopya baslatilmadi. Lock: {self.lock_path}",
-                flush=True,
-            )
+            self._exit_existing_instance()
             try:
                 self._fh.close()
             finally:
                 self._fh = None
             sys.exit(0)
+
+    def _exit_existing_instance(self) -> None:
+        message = f"{self.name} zaten calisiyor. Yeni kopya baslatilmadi. Lock: {self.lock_path}"
+        logging.warning(message)
+        print(message, flush=True)
 
     def _write_pid_keep_handle(self) -> None:
         if not self._fh:

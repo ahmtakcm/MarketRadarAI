@@ -6,6 +6,7 @@ from core.observability import (
     format_scan_observation,
     format_startup_metadata,
 )
+from single_instance import SingleInstance
 
 
 def test_startup_metadata_includes_runtime_paths():
@@ -45,4 +46,18 @@ def test_deployment_docs_include_current_service_and_restart_loop_triage():
     assert "mexc-tarama-bot.service" in text
     assert "MarketRadarAI scanner service" in text
     assert "Restart Loop Triage" in text
+    assert "Restart=on-failure" in text
+    assert "StandardError=journal" in text
     assert "journalctl -u mexc-tarama-bot.service" in text
+
+
+def test_duplicate_instance_exit_is_visible(caplog, capsys):
+    lock_path = Path("storage/alarm_bot.lock")
+    guard = SingleInstance("MarketRadarAI", lock_path)
+
+    with caplog.at_level("WARNING"):
+        guard._exit_existing_instance()
+
+    assert "MarketRadarAI zaten calisiyor" in caplog.text
+    assert str(lock_path) in caplog.text
+    assert "Yeni kopya baslatilmadi" in capsys.readouterr().out
