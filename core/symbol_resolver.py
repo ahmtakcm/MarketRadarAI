@@ -1,6 +1,8 @@
 ﻿from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Mapping
 
 DEFAULT_SYMBOL_ALIASES: dict[str, str | dict[str, object]] = {
@@ -50,6 +52,15 @@ def normalize_symbol(value: object) -> str:
 
 
 class SymbolResolver:
+
+    def _load_aliases(self) -> dict[str, str | dict[str, object]]:
+        try:
+            path = Path("data/symbol_aliases.json")
+            if path.exists():
+                return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+        return DEFAULT_SYMBOL_ALIASES
     def __init__(self, aliases: Mapping[str, str | Mapping[str, object]] | None = None) -> None:
         self.aliases = {
             normalize_symbol(key): value
@@ -143,6 +154,7 @@ class SymbolResolver:
             if normalize_symbol(symbol)
         ]
         return preferred, alternatives
+
 
 
 
