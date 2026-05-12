@@ -77,3 +77,19 @@ def test_symbol_resolver_preserves_active_alternatives_for_review_aliases():
     assert result.supported is True
     assert result.reason == "alias"
     assert result.alternatives == ["NGASUSDT"]
+
+
+def test_symbol_resolver_matches_common_stock_shortcodes_without_usdt_suffix():
+    resolver = SymbolResolver()
+    valid_symbols = {"TESLAUSDT", "NVIDIAUSDT"}
+
+    tsla = resolver.resolve("TSLA", valid_symbols)
+    nvda = resolver.resolve("NVDA", valid_symbols)
+
+    assert tsla.resolved == "TESLAUSDT"
+    assert tsla.supported is True
+    assert tsla.reason == "alias"
+
+    assert nvda.resolved == "NVIDIAUSDT"
+    assert nvda.supported is True
+    assert nvda.reason == "alias"
