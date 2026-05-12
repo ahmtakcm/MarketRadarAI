@@ -20,6 +20,7 @@ This document describes the current architecture and the safe migration directio
 - `runtime/`: untracked runtime config target.
 - `logs/`: runtime logs.
 - `backups/` and `updates/backups/`: operational backups.
+- `deploy/systemd/`: repo-managed systemd templates for legacy compatibility and MarketRadarAI target service.
 
 ## Main Flow
 
@@ -194,7 +195,7 @@ Deferred risks:
 - Move hardcoded Telegram chat IDs into local config without changing behavior.
 - Split larger Telegram command families further if command volume grows.
 - Introduce a MEXC adapter interface without changing scanner candle contracts.
-- Rename the existing `mexc-tarama-bot.service` unit to a MarketRadarAI service name.
+- Apply the prepared service/repo/path rename checklist from `docs/DEPLOYMENT.md`.
 
 ## Safe Target Structure
 

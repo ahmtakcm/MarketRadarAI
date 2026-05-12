@@ -96,7 +96,7 @@ The production unit should use `Restart=on-failure`, not `Restart=always`, becau
 - Do not work directly on `main`.
 - Feature branches are for PR validation only.
 - Runtime config must not be committed.
-- Keep service rename work separate from scanner behavior changes.
+- Service/repo/path rename must follow `docs/DEPLOYMENT.md`; it is operational migration work, not scanner behavior work.
 
 ## Deferred Work
 
@@ -105,4 +105,4 @@ The production unit should use `Restart=on-failure`, not `Restart=always`, becau
 - Add an explicit runtime stop token for graceful thread shutdown and bounded integration tests.
 - Introduce a real exchange adapter interface without changing scanner candle contracts.
 - Add file locking to scanner state writes if multiple state writers are introduced.
-- Rename repository/package paths after service and deployment migration are validated.
+- Apply repository/package path rename only after the service migration checklist is validated.

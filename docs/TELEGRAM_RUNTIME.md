@@ -2,6 +2,7 @@
 
 Telegram runtime behavior remains backward compatible with the previous `telegram_commands.py` surface.
 `telegram_commands.py` is now a thin facade; implementation ownership lives under `telegram/`.
+Service or repository renames do not change Telegram command names or authorization behavior.
 
 ## Module Ownership
 

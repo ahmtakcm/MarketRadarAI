@@ -19,4 +19,6 @@ def test_marketradarai_runtime_docs_exist():
 
 
 def test_systemd_template_exists():
+    assert Path("deploy/systemd/marketradarai.service").is_file()
     assert Path("deploy/systemd/marketradarai.service.example").is_file()
+    assert Path("deploy/systemd/mexc-tarama-bot.service.compat").is_file()

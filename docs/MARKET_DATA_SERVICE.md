@@ -1,6 +1,7 @@
 # MarketRadarAI MarketDataService
 
 `core.market_data_service` is the market-data boundary between resolved exchange symbols and the current MEXC client.
+Service, repository, or directory renames do not change the market-data boundary.
 
 ## Responsibilities
 
