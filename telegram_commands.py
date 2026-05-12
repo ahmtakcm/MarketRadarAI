@@ -8,6 +8,7 @@ from pathlib import Path
 
 import requests
 
+from core.asset_universe import build_watchlist_text, resolve_asset_universe
 from core.exchange_client import get_valid_futures_symbols
 from health_monitor import build_health_text
 from remote_config import get_active_modes, load_config, normalize_symbol, save_config
@@ -260,8 +261,8 @@ def _read_tail(path: Path, lines=40) -> str:
 
 def _help_text():
     return (
-        "MEXC TARAMA KOMUTLARI\n"
-        "====================\n\n"
+        "MarketRadarAI KOMUTLARI\n"
+        "=======================\n\n"
 
         "[1] DURUM\n"
         "/status      Bot durumu + ping\n"
@@ -287,7 +288,7 @@ def _help_text():
         "/volume_filter_on    Volume filtresini ac\n"
         "/volume_filter_off   Volume filtresini kapat\n\n"
 
-        "[6] SEMBOLLER\n"
+        "[6] WATCHLIST\n"
         "/watchlist              Izleme listesini goster\n"
         "/add_symbol BTCUSDT     Sembol ekle\n"
         "/remove_symbol BTCUSDT  Sembol cikar\n\n"
@@ -297,6 +298,30 @@ def _help_text():
 
         "Not: Grup komutlari kapali. Tum komutlar admin private chat icindir."
     )
+
+
+def _watchlist_text(cfg):
+    symbols = cfg.get("watchlist", {}).get("symbols", [])
+    if not symbols:
+        return (
+            "MarketRadarAI WATCHLIST\n\n"
+            "Liste bos. Bot tarama yapmaz.\n\n"
+            "Sembol eklemek icin: /add_symbol BTCUSDT"
+        )
+
+    try:
+        valid_symbols = get_valid_futures_symbols()
+    except Exception as e:
+        logging.exception("Watchlist symbol resolution failed")
+        return (
+            "MarketRadarAI WATCHLIST\n\n"
+            f"Toplam: {len(symbols)}\n"
+            f"Kayitli semboller: {', '.join(symbols)}\n\n"
+            "Desteklenen/desteklenmeyen ayrimi su an dogrulanamadi.\n"
+            f"Hata: {str(e)[:120]}"
+        )
+
+    return build_watchlist_text(resolve_asset_universe(symbols, valid_symbols))
 
 
 def handle_command_message(message, send_telegram):
@@ -414,19 +439,7 @@ def handle_command_message(message, send_telegram):
         return
 
     if cmd == "/watchlist":
-        symbols = cfg.get("watchlist", {}).get("symbols", [])
-        if symbols:
-            reply(
-                "📌 İZLEME LİSTESİ\n\n"
-                f"Taranacak semboller: {', '.join(symbols)}\n\n"
-                "Not: Bot sadece bu listedeki sembolleri tarar."
-            )
-        else:
-            reply(
-                "📌 İZLEME LİSTESİ\n\n"
-                "Liste boş. Bot tarama yapmaz.\n\n"
-                "Sembol eklemek için: /add_symbol BTCUSDT"
-            )
+        reply(_watchlist_text(cfg))
         return
 
     if cmd == "/add_symbol":

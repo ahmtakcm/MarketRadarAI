@@ -32,6 +32,7 @@ product identity is MarketRadarAI.
 8. Check `systemctl status mexc-tarama-bot.service`.
 9. Check `journalctl -u mexc-tarama-bot.service -n 120 --no-pager`.
 10. Confirm `logs/app.log` contains `MarketRadarAI startup` and `MarketRadarAI startup success`.
+11. Confirm startup logs include `MarketRadarAI asset universe` with supported and unsupported counts.
 
 ## Restart Loop Triage
 
@@ -54,6 +55,7 @@ Check these first:
 The app now logs:
 
 - startup metadata: exchange, active modes, watchlist count, state path, runtime config path
+- asset universe summary: requested, supported, and unsupported watchlist counts
 - startup success after symbols are loaded and watchlist filtering is applied
 - scan loop start and finish, including active modes and symbol count
 - `/scan_now` flag consumption with active modes and watchlist count

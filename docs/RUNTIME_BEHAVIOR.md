@@ -1,15 +1,16 @@
 # MarketRadarAI Runtime Behavior
 
-This document records the current behavior before larger MarketRadarAI migrations.
-It is intentionally descriptive: it must not be treated as permission to change runtime behavior in the same PR.
+`main.py` is the daemon entrypoint. It should stay alive under systemd and owns the scanner process.
 
-## Current Entry Points
+## Ownership
 
-- `main.py` starts the long-running scanner process.
-- `single_instance.py` prevents duplicate scanner processes through `storage/alarm_bot.lock`.
-- `main.py` currently calls Telegram command polling through `poll_telegram_commands`.
-- `telegram_commands.py` is the active Telegram command implementation.
-- `commands/registry.py` is a passive registry for tooling/tests and must not replace the active dispatcher without a separate migration PR.
+- `main.py`: process entrypoint, single-instance guard, scanner loop orchestration.
+- `core.asset_universe`: watchlist-to-source symbol resolution.
+- `core.scanner`: signal message construction from supported symbols.
+- `core.scheduler`: next scan sleep interval.
+- `telegram_commands.py`: active Telegram dispatcher and polling implementation.
+- `remote_config.py`: mutable runtime config.
+- `core.state_store`: runtime scanner state.
 
 ## Active Telegram Behavior
 
@@ -35,7 +36,7 @@ Active admin-private commands are:
 - `/log`
 - `/error_log`
 
-Group commands are currently disabled.
+Group commands are currently disabled. The command set is unchanged by the asset-universe migration.
 
 ## Config And State Boundaries
 
@@ -48,26 +49,41 @@ Group commands are currently disabled.
 - Symbol cache: `storage/last_active_symbols.json`.
 - Process lock: `storage/alarm_bot.lock`.
 - Telegram offset: `telegram_offset.txt`.
-- Logs: `logs/app.log`.
+- Logs: `logs/app.log` and journald stderr stream.
 - Manual backups: `backups/`.
+
+## Loop Model
+
+1. Load state and runtime config.
+2. Start Telegram command polling thread.
+3. Load active exchange symbols with fallback cache.
+4. Resolve watchlist against active exchange symbols.
+5. Scan supported symbols for active modes.
+6. Persist state and signal journals.
+7. Sleep until the scheduler says to scan again.
+
+`/scan_now` sets `runtime.force_scan_once = true`. The daemon consumes that flag, clears it, and runs the next scan cycle without waiting for the normal sleep to finish.
+
+## Exit Model
+
+- Normal operator shutdown: `KeyboardInterrupt` or systemd stop.
+- Duplicate instance: the lock guard exits cleanly and logs the lock path.
+- Fatal startup/runtime exception: logged as `MarketRadarAI fatal crash` and re-raised.
+
+The production unit should use `Restart=on-failure`, not `Restart=always`, because this is a daemon rather than a one-shot job.
 
 ## Deployment Rules
 
 - Production runs from `main` only.
 - Do not work directly on `main`.
 - Feature branches are for PR validation only.
-- Keep hardening PRs small and reversible.
-- Do not change Telegram commands, scanner flow, or config values in documentation-only or hardening-only work.
+- Runtime config must not be committed.
+- Keep service rename work separate from scanner behavior changes.
 
 ## Deferred Work
 
-These items are intentionally out of scope for this preparation PR:
-
-- Split `telegram_commands.py` into multiple runtime modules.
-- Change the active Telegram command dispatcher.
 - Move Telegram polling ownership out of `main.py`.
-- Introduce a generic exchange adapter interface.
-- Rename repository/package paths.
-- Remove the legacy `remote_config.json` seed after production has safely migrated to `runtime/remote_config.json`.
-- Change visible Telegram command text or command names.
-- Change scanner scheduling, signal generation, or watchlist semantics.
+- Split `telegram_commands.py` into smaller runtime modules.
+- Introduce a real exchange adapter interface without changing scanner candle contracts.
+- Add compare-and-swap or file locking around runtime config writes.
+- Rename repository/package paths after service and deployment migration are validated.

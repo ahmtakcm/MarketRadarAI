@@ -48,3 +48,42 @@ def test_scan_now_sets_force_scan_flag_without_changing_modes(monkeypatch):
     assert replies == [
         "Anlik tarama tetiklendi. Aktif modlar icin mum kapanisi beklenmeden tarama baslatiliyor."
     ]
+
+
+def test_help_uses_marketradarai_identity(monkeypatch):
+    replies = []
+
+    monkeypatch.setattr(telegram_commands, "load_config", lambda: {"runtime": {}})
+    monkeypatch.setattr(telegram_commands, "_send_to_chat", lambda _chat_id, text: replies.append(text))
+
+    telegram_commands.handle_command_message(
+        {"chat": {"id": telegram_commands.ADMIN_CHAT_ID}, "text": "/help"},
+        lambda _text: None,
+    )
+
+    assert replies
+    assert replies[0].startswith("MarketRadarAI KOMUTLARI")
+    assert "/watchlist" in replies[0]
+
+
+def test_watchlist_shows_supported_and_unsupported_symbols(monkeypatch):
+    cfg = {
+        "watchlist": {"symbols": ["BTCUSDT", "ETHUSDT", "AAPLUSDT", "XAUUSDT"]},
+        "runtime": {},
+    }
+    replies = []
+
+    monkeypatch.setattr(telegram_commands, "load_config", lambda: cfg)
+    monkeypatch.setattr(telegram_commands, "get_valid_futures_symbols", lambda: ["BTCUSDT", "ETHUSDT"])
+    monkeypatch.setattr(telegram_commands, "_send_to_chat", lambda _chat_id, text: replies.append(text))
+
+    telegram_commands.handle_command_message(
+        {"chat": {"id": telegram_commands.ADMIN_CHAT_ID}, "text": "/watchlist"},
+        lambda _text: None,
+    )
+
+    assert replies
+    assert "MarketRadarAI WATCHLIST" in replies[0]
+    assert "Desteklenen: 2" in replies[0]
+    assert "Desteklenmeyen: 2" in replies[0]
+    assert "AAPLUSDT, XAUUSDT" in replies[0]
