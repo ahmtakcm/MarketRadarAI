@@ -84,8 +84,42 @@ def test_help_uses_marketradarai_identity(monkeypatch):
     )
 
     assert replies
-    assert replies[0].startswith("MarketRadarAI KOMUTLARI")
+    assert replies[0].startswith("MarketRadarAI HELP")
+    assert "Durum ve loglar" in replies[0]
+    assert "Watchlist" in replies[0]
+    assert "admin private" in replies[0]
     assert "/watchlist" in replies[0]
+    for command in telegram_commands.ADMIN_PRIVATE_COMMANDS:
+        assert command in replies[0]
+
+
+def test_status_includes_modes_watchlist_runtime_and_health(monkeypatch):
+    cfg = {
+        "modes": {"scalp": True, "intraday": True, "midterm": False},
+        "filters": {"fake_breakout_filter": True, "volume_confirmation": False},
+        "limits": {"cooldown_minutes": 30},
+        "watchlist": {"symbols": ["BTCUSDT", "TSLAUSDT", "UNKNOWNUSDT"]},
+        "runtime": {},
+    }
+    replies = []
+
+    monkeypatch.setattr(handlers, "load_config", lambda: cfg)
+    monkeypatch.setattr(messages, "load_config", lambda: cfg)
+    monkeypatch.setattr(messages, "get_valid_futures_symbols", lambda: ["BTCUSDT", "TESLAUSDT"])
+    monkeypatch.setattr(messages, "get_config_path", lambda: messages.BASE_DIR / "runtime" / "remote_config.json")
+    monkeypatch.setattr(handlers, "send_to_chat", lambda _chat_id, text: replies.append(text))
+
+    telegram_commands.handle_command_message(
+        {"chat": {"id": telegram_commands.ADMIN_CHAT_ID}, "text": "/status"},
+        lambda _text: None,
+    )
+
+    assert replies
+    assert replies[0].startswith("MarketRadarAI STATUS")
+    assert "SAGLIK" in replies[0]
+    assert "config: runtime\\remote_config.json" in replies[0] or "config: runtime/remote_config.json" in replies[0]
+    assert "Aktif calisan: scalp, intraday" in replies[0]
+    assert "Watchlist: 3 kayit | supported 2 | unsupported 1" in replies[0]
 
 
 def test_watchlist_shows_supported_and_unsupported_symbols(monkeypatch):
@@ -106,8 +140,9 @@ def test_watchlist_shows_supported_and_unsupported_symbols(monkeypatch):
 
     assert replies
     assert "MarketRadarAI WATCHLIST" in replies[0]
-    assert "Desteklenen: 2" in replies[0]
-    assert "Desteklenmeyen: 2" in replies[0]
+    assert "Summary: MEXC | requested 4 | supported 2 | unsupported 2" in replies[0]
+    assert "Supported scan symbols:" in replies[0]
+    assert "Unsupported symbols:" in replies[0]
     assert "AAPLUSDT, XAUUSDT" in replies[0]
 
 
@@ -183,7 +218,7 @@ def test_watchlist_shows_resolved_alias_symbols(monkeypatch):
     )
 
     assert replies
-    assert "Cozumlenen semboller:" in replies[0]
+    assert "Resolved aliases:" in replies[0]
     assert "TSLAUSDT -> TESLAUSDT" in replies[0]
     assert "SP500USDT -> SPX500USDT" in replies[0]
     assert "UNKNOWNUSDT" in replies[0]

@@ -35,9 +35,10 @@ def test_asset_universe_log_and_watchlist_text_are_marketradarai_visible():
 
     text = build_watchlist_text(resolution)
     assert "MarketRadarAI WATCHLIST" in text
-    assert "Taranacak semboller:" in text
+    assert "Summary: MEXC | requested 3 | supported 1 | unsupported 2" in text
+    assert "Supported scan symbols:" in text
     assert "BTCUSDT" in text
-    assert "Desteklenmeyen semboller:" in text
+    assert "Unsupported symbols:" in text
     assert "AAPLUSDT, XAUUSDT" in text
 
 def test_asset_universe_resolves_known_aliases_before_marking_unsupported():
@@ -55,7 +56,7 @@ def test_asset_universe_resolves_known_aliases_before_marking_unsupported():
     }
 
     text = build_watchlist_text(resolution)
-    assert "Cozumlenen semboller:" in text
+    assert "Resolved aliases:" in text
     assert "TSLAUSDT -> TESLAUSDT" in text
     assert "SP500USDT -> SPX500USDT" in text
 
