@@ -11,7 +11,7 @@ User Input -> SymbolResolver -> AssetUniverse -> SymbolCatalog -> MarketDataServ
 - `core.symbol_resolver.SymbolResolver` is the only symbol interpretation authority. It normalizes input, checks exact exchange symbols, resolves explicit aliases, and returns `SymbolResolution`.
 - `core.asset_universe.resolve_asset_universe` aggregates requested symbols and splits them into supported and unsupported lists by using resolver output.
 - `core.symbol_catalog` is read-only enrichment metadata. It must not validate, route, or rewrite symbols.
-- `core.exchange_client` is the current MEXC market-data boundary. It should receive already-resolved exchange symbols.
+- `core.market_data_service` is the market-data boundary. It delegates to `core.exchange_client` and should receive already-resolved exchange symbols.
 - `core.scanner` should scan only supported symbols provided by `ScannerRuntime`.
 
 ## Hard Rules
@@ -25,6 +25,6 @@ User Input -> SymbolResolver -> AssetUniverse -> SymbolCatalog -> MarketDataServ
 
 ## Current Gaps
 
-- `MarketDataService` is not yet a separate adapter class; `core.exchange_client` is the current implementation boundary.
+- `MarketDataService` is a thin boundary over `core.exchange_client`; full multi-source routing is still deferred.
 - `telegram_commands.py` still contains active dispatcher logic in one file.
 - Runtime config writes still need file locking or compare-and-swap.

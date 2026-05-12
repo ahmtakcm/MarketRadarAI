@@ -9,6 +9,7 @@
 - `core.asset_universe`: watchlist-to-source symbol resolution.
 - `core.symbol_resolver`: exact/alias symbol interpretation without API calls or guessing.
 - `core.symbol_catalog`: read-only symbol metadata enrichment.
+- `core.market_data_service`: validated market-data boundary over the current MEXC client.
 - `core.scanner`: signal message construction from supported symbols.
 - `core.scheduler`: next scan sleep interval.
 - `telegram_commands.py`: active Telegram dispatcher and polling implementation.
@@ -61,7 +62,7 @@ Group commands are currently disabled. The command set is unchanged by the asset
 2. Sync Telegram command menu once and start the Telegram command polling thread.
 3. Load active exchange symbols with fallback cache.
 4. Resolve watchlist against active exchange symbols.
-5. Scan supported symbols for active modes.
+5. Scan supported symbols for active modes through MarketDataService.
 6. Persist state and signal journals.
 7. Sleep until the scheduler says to scan again.
 

@@ -14,7 +14,7 @@ from core.asset_universe import (
     normalize_asset_symbols,
     resolve_asset_universe,
 )
-from core.exchange_client import fetch_klines, get_kline_limit
+from core.market_data_service import DEFAULT_MARKET_DATA_SERVICE, MarketDataService
 from core.observability import build_scan_observation, format_scan_observation
 from remote_config import get_active_modes, load_config, save_config
 from signal_journal import append_signal_message, set_last_signal
@@ -55,22 +55,22 @@ def get_requested_symbols() -> list[str]:
         return []
 
 
-def get_active_symbols() -> list[str]:
+def get_active_symbols(market_data_service: MarketDataService | None = None) -> list[str]:
     from core.scanner import get_active_symbols as _get_active_symbols
 
-    return _get_active_symbols()
+    return _get_active_symbols(market_data_service or DEFAULT_MARKET_DATA_SERVICE)
 
 
-def build_signal_message(symbols, state):
+def build_signal_message(symbols, state, market_data_service: MarketDataService | None = None):
     from core.scanner import build_signal_message as _build_signal_message
 
-    return _build_signal_message(symbols, state)
+    return _build_signal_message(symbols, state, market_data_service or DEFAULT_MARKET_DATA_SERVICE)
 
 
-def get_daily_commentaries(symbols, state):
+def get_daily_commentaries(symbols, state, market_data_service: MarketDataService | None = None):
     from core.scanner import get_daily_commentaries as _get_daily_commentaries
 
-    return _get_daily_commentaries(symbols, state)
+    return _get_daily_commentaries(symbols, state, market_data_service or DEFAULT_MARKET_DATA_SERVICE)
 
 
 def finalize_pending_signals(state, fetcher, limit_getter) -> None:
@@ -104,11 +104,13 @@ class ScannerRuntime:
         poll_telegram_commands: PollTelegramCommands,
         send_lifecycle: SendLifecycle | None = None,
         sync_telegram_commands: SyncTelegramCommands | None = None,
+        market_data_service: MarketDataService | None = None,
     ) -> None:
         self.send_telegram = send_telegram
         self.poll_telegram_commands = poll_telegram_commands
         self.send_lifecycle = send_lifecycle or (lambda _title, _fields=None: None)
         self.sync_telegram_commands = sync_telegram_commands
+        self.market_data_service = market_data_service or DEFAULT_MARKET_DATA_SERVICE
         self._telegram_command_thread_started = False
         self._telegram_commands_synced = False
 
@@ -145,7 +147,7 @@ class ScannerRuntime:
         return get_requested_symbols()
 
     def _fetch_live_symbols_once(self) -> list[str]:
-        symbols = self._safe_symbols(get_active_symbols())
+        symbols = self._safe_symbols(get_active_symbols(self.market_data_service))
         if not symbols:
             raise RuntimeError("Aktif sembol listesi boş geldi")
         return symbols
@@ -342,7 +344,7 @@ class ScannerRuntime:
         loop_cfg = load_config()
         scan_observation = build_scan_observation(get_active_modes(loop_cfg), symbols)
         logging.info(format_scan_observation("start", scan_observation))
-        signal_message = build_signal_message(symbols, state)
+        signal_message = build_signal_message(symbols, state, self.market_data_service)
 
         if signal_message and signal_message != state.get("last_sent_message"):
             set_last_signal(signal_message)
@@ -357,14 +359,18 @@ class ScannerRuntime:
             state["last_sent_message"] = signal_message
 
         if not is_quiet_mode():
-            commentaries = get_daily_commentaries(symbols, state)
+            commentaries = get_daily_commentaries(symbols, state, self.market_data_service)
             for msg in commentaries:
                 self.send_telegram(msg)
                 logging.info("Günlük yorum gönderildi")
         else:
             logging.info("Quiet mode açık; günlük yorum gönderimi atlandı")
 
-        finalize_pending_signals(state, fetch_klines, get_kline_limit)
+        finalize_pending_signals(
+            state,
+            self.market_data_service.fetch_klines,
+            self.market_data_service.get_kline_limit,
+        )
         save_state(state)
         logging.info(
             "%s | duration_seconds=%.2f",

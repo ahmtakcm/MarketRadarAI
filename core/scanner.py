@@ -2,8 +2,11 @@ import logging
 import time
 
 from config import COMMENTARY_SYMBOLS, SIGNALS_LOG_PATH
-from core.exchange_client import fetch_klines, get_kline_limit, get_valid_futures_symbols
 from core.indicator_engine import build_levels
+from core.market_data_service import (
+    DEFAULT_MARKET_DATA_SERVICE,
+    MarketDataService,
+)
 from core.mtf_signal_engine import analyze_mtf_signal
 from core.performance_tracker import register_signal
 from core.scheduler import get_active_mode_plans
@@ -13,12 +16,16 @@ from macro_bridge import get_macro_signal, macro_direction_for_symbol
 from remote_config import load_config
 
 
-def get_active_symbols():
+def _service(market_data_service: MarketDataService | None = None) -> MarketDataService:
+    return market_data_service or DEFAULT_MARKET_DATA_SERVICE
+
+
+def get_active_symbols(market_data_service: MarketDataService | None = None):
     """
     Borsadaki geçerli futures sembollerini döndürür.
     High alert sembol listesini daraltmaz; sadece mesaj/öncelik katmanı olarak kullanılır.
     """
-    return get_valid_futures_symbols()
+    return _service(market_data_service).get_valid_futures_symbols()
 
 
 def log_signal(symbol, timeframe, strategy_name, signal, reason, levels, mode=None):
@@ -37,8 +44,9 @@ def log_signal(symbol, timeframe, strategy_name, signal, reason, levels, mode=No
     append_jsonl(SIGNALS_LOG_PATH, row)
 
 
-def _fetch_context(symbol, tf):
-    candles = fetch_klines(symbol, tf, get_kline_limit(tf))
+def _fetch_context(symbol, tf, market_data_service: MarketDataService | None = None):
+    service = _service(market_data_service)
+    candles = service.fetch_klines(symbol, tf, service.get_kline_limit(tf))
     if not candles:
         return None, None
 
@@ -76,7 +84,7 @@ def _bias_text(entry_signal, bias_levels, setup_levels, plan):
     )
 
 
-def build_signal_lines(symbols, state):
+def build_signal_lines(symbols, state, market_data_service: MarketDataService | None = None):
     lines = []
     plans = get_active_mode_plans()
     cfg = load_config()
@@ -96,7 +104,7 @@ def build_signal_lines(symbols, state):
                 setup_tf = plan["setup"]
                 bias_tf = plan["bias"]
 
-                entry_candles, entry_levels = _fetch_context(symbol, entry_tf)
+                entry_candles, entry_levels = _fetch_context(symbol, entry_tf, market_data_service)
                 if not entry_levels:
                     continue
 
@@ -107,8 +115,8 @@ def build_signal_lines(symbols, state):
                 if last_saved_close == current_close:
                     continue
 
-                _bias_candles, bias_levels = _fetch_context(symbol, bias_tf)
-                _setup_candles, setup_levels = _fetch_context(symbol, setup_tf)
+                _bias_candles, bias_levels = _fetch_context(symbol, bias_tf, market_data_service)
+                _setup_candles, setup_levels = _fetch_context(symbol, setup_tf, market_data_service)
 
                 strategy_context = {
                     "symbol": symbol,
@@ -209,15 +217,15 @@ def build_signal_lines(symbols, state):
 
 
 
-def build_signal_message(symbols, state):
-    lines = build_signal_lines(symbols, state)
+def build_signal_message(symbols, state, market_data_service: MarketDataService | None = None):
+    lines = build_signal_lines(symbols, state, market_data_service)
     if not lines:
         return None
 
     return "🚨 SİNYAL\n\n" + "\n\n".join(lines)
 
 
-def get_daily_commentaries(symbols, state):
+def get_daily_commentaries(symbols, state, market_data_service: MarketDataService | None = None):
     comments = []
     state.setdefault("daily_commentary", {})
 
@@ -225,7 +233,8 @@ def get_daily_commentaries(symbols, state):
         if symbol not in COMMENTARY_SYMBOLS:
             continue
 
-        candles = fetch_klines(symbol, "1d", get_kline_limit("1d"))
+        service = _service(market_data_service)
+        candles = service.fetch_klines(symbol, "1d", service.get_kline_limit("1d"))
         if not candles:
             continue
 

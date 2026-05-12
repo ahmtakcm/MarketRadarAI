@@ -8,6 +8,21 @@ from core import scanner_orchestrator
 from core.scanner_orchestrator import ScannerRuntime
 
 
+class FakeMarketDataService:
+    def __init__(self):
+        self.fetch_calls = []
+
+    def fetch_klines(self, symbol, interval, limit):
+        self.fetch_calls.append((symbol, interval, limit))
+        return []
+
+    def get_kline_limit(self, interval):
+        return 5
+
+    def get_valid_futures_symbols(self):
+        return ["BTCUSDT", "TESLAUSDT"]
+
+
 def _runtime():
     return ScannerRuntime(
         send_telegram=lambda _text: None,
@@ -80,8 +95,8 @@ def test_orchestrator_scan_cycle_isolates_duplicate_signal_delivery(monkeypatch)
     state = {"last_sent_message": "existing"}
 
     monkeypatch.setattr(scanner_orchestrator, "load_config", lambda: {"modes": {"scalp": True}})
-    monkeypatch.setattr(scanner_orchestrator, "build_signal_message", lambda _symbols, _state: "existing")
-    monkeypatch.setattr(scanner_orchestrator, "get_daily_commentaries", lambda _symbols, _state: [])
+    monkeypatch.setattr(scanner_orchestrator, "build_signal_message", lambda _symbols, _state, _service: "existing")
+    monkeypatch.setattr(scanner_orchestrator, "get_daily_commentaries", lambda _symbols, _state, _service: [])
     monkeypatch.setattr(scanner_orchestrator, "finalize_pending_signals", lambda *_args: None)
     monkeypatch.setattr(scanner_orchestrator, "save_state", lambda value: saved_states.append(dict(value)))
 
@@ -93,3 +108,39 @@ def test_orchestrator_scan_cycle_isolates_duplicate_signal_delivery(monkeypatch)
 
     assert sent == []
     assert saved_states == [{"last_sent_message": "existing"}]
+
+
+def test_orchestrator_uses_injected_market_data_service_for_symbol_discovery():
+    service = FakeMarketDataService()
+    runtime = ScannerRuntime(
+        send_telegram=lambda _text: None,
+        poll_telegram_commands=lambda _send: None,
+        market_data_service=service,
+    )
+
+    assert runtime._fetch_live_symbols_once() == ["BTCUSDT", "TESLAUSDT"]
+
+
+def test_unknown_symbol_does_not_reach_market_data_service(monkeypatch):
+    service = FakeMarketDataService()
+    runtime = ScannerRuntime(
+        send_telegram=lambda _text: None,
+        poll_telegram_commands=lambda _send: None,
+        market_data_service=service,
+    )
+
+    monkeypatch.setattr(
+        scanner_orchestrator,
+        "load_config",
+        lambda: {"watchlist": {"symbols": ["UNKNOWNUSDT"]}, "modes": {"scalp": True}},
+    )
+    monkeypatch.setattr(scanner_orchestrator, "build_signal_message", lambda _symbols, _state, _service: None)
+    monkeypatch.setattr(scanner_orchestrator, "get_daily_commentaries", lambda _symbols, _state, _service: [])
+    monkeypatch.setattr(scanner_orchestrator, "finalize_pending_signals", lambda *_args: None)
+    monkeypatch.setattr(scanner_orchestrator, "save_state", lambda _state: None)
+
+    symbols = runtime.apply_watchlist_filter(["BTCUSDT", "TESLAUSDT"])
+    runtime.run_scan_cycle({"last_sent_message": None}, symbols)
+
+    assert symbols == []
+    assert service.fetch_calls == []

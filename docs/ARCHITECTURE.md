@@ -7,7 +7,8 @@ This document describes the current architecture and the safe migration directio
 
 - `main.py`: process entry point, logging setup, single-instance guard, and runtime bootstrap.
 - `core/scanner_orchestrator.py`: long-running scanner runtime orchestration.
-- `core/`: asset universe resolution, exchange access, scanner, scheduler, indicators, signal engine, performance tracking, observability, and state persistence.
+- `core/market_data_service.py`: market-data boundary over the current MEXC client.
+- `core/`: symbol resolution, asset universe resolution, exchange access, scanner, scheduler, indicators, signal engine, performance tracking, observability, and state persistence.
 - `strategies/`: individual signal strategies used by `core.signal_engine`.
 - `telegram_commands.py`: active Telegram command dispatcher and Telegram polling implementation.
 - `commands/`: passive command registry used by tooling and tests. It must not replace the active dispatcher without a separate PR.
@@ -72,11 +73,13 @@ This document describes the current architecture and the safe migration directio
 ## Exchange Flow
 
 - `core.exchange_client` is the current MEXC market-data client.
+- `core.market_data_service` is the boundary consumed by scanner runtime and scanner code.
 - It converts plain symbols to MEXC contract symbols.
 - It normalizes kline rows into scanner candle dictionaries.
 - `core.symbol_resolver` is the single symbol interpretation layer for exact matches and explicit aliases.
 - `core.asset_universe` treats MEXC as the active crypto-futures source and exposes unsupported watchlist entries instead of silently dropping them.
 - `core.symbol_catalog` is read-only enrichment metadata and does not route or validate symbols.
+- MarketDataService accepts already-resolved uppercase exchange symbols; it does not alias, guess, or normalize user input.
 - Multi-exchange adapters are deferred.
 
 ## Signal Flow
