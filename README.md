@@ -14,7 +14,8 @@ The repository name can stay `mexc-tarama-bot` for now, but user-facing project 
 - Production runs from `main` only.
 - Feature branches are for PR validation and must not be kept running permanently on the server.
 - `main.py` owns the scanner loop, scheduling, symbol refresh, signal generation, and state writes.
-- `telegram_commands.py` owns the active Telegram command behavior.
+- `telegram_commands.py` remains the backward-compatible Telegram runtime facade.
+- `telegram/` owns polling, guards, handlers, menu sync, message formatting, and offset persistence.
 - The existing Telegram command set must stay backward compatible.
 - Existing config values and scanner flow must not change in hardening-only PRs.
 
@@ -35,6 +36,6 @@ The repository name can stay `mexc-tarama-bot` for now, but user-facing project 
 MarketRadarAI keeps the requested watchlist separate from the symbols supported by the active data source.
 Unsupported entries remain visible in startup logs and Telegram `/watchlist`; they are not silently scanned or dropped.
 
-See `docs/RUNTIME_BEHAVIOR.md`, `docs/SCANNER_ORCHESTRATION.md`, `docs/ASSET_UNIVERSE.md`, `docs/SIGNAL_LIFECYCLE.md`, `docs/ARCHITECTURE.md`, and `docs/DEPLOYMENT.md` for the current behavior map, persistence inventory, deployment checklist, and deferred hardening work.
+See `docs/RUNTIME_BEHAVIOR.md`, `docs/SCANNER_ORCHESTRATION.md`, `docs/ASSET_UNIVERSE.md`, `docs/TELEGRAM_RUNTIME.md`, `docs/SIGNAL_LIFECYCLE.md`, `docs/ARCHITECTURE.md`, and `docs/DEPLOYMENT.md` for the current behavior map, persistence inventory, deployment checklist, and deferred hardening work.
 
 
