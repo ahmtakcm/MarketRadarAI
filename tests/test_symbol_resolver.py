@@ -93,3 +93,36 @@ def test_symbol_resolver_matches_common_stock_shortcodes_without_usdt_suffix():
     assert nvda.resolved == "NVIDIAUSDT"
     assert nvda.supported is True
     assert nvda.reason == "alias"
+
+
+def test_symbol_resolver_can_discover_single_matching_exchange_symbol():
+    resolver = SymbolResolver()
+
+    result = resolver.resolve(
+        "AMZN",
+        {
+            "AMAZONUSDT",
+            "BTCUSDT",
+        },
+    )
+
+    assert result.resolved == "AMAZONUSDT"
+    assert result.supported is True
+    assert result.reason == "alias"
+
+
+def test_symbol_resolver_does_not_guess_when_multiple_candidates_exist():
+    resolver = SymbolResolver()
+
+    result = resolver.resolve(
+        "SPX",
+        {
+            "SPXUSDT",
+            "SPX500USDT",
+        },
+    )
+
+    assert result.resolved is None
+    assert result.supported is False
+    assert result.reason == "ambiguous"
+

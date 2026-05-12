@@ -29,6 +29,7 @@ DEFAULT_SYMBOL_ALIASES: dict[str, str | dict[str, object]] = {
     "QQQUSDT": "QQQSTOCKUSDT",
     "TSLA": "TESLAUSDT",
     "TSLAUSDT": "TESLAUSDT",
+    "AMZN": "AMAZONUSDT",
     "NVDA": "NVIDIAUSDT",
     "NVDAUSDT": "NVIDIAUSDT",
     "HK50": "HK50USDT",
@@ -77,6 +78,29 @@ class SymbolResolver:
 
         alias_entry = self.aliases.get(requested)
         if alias_entry is None:
+            discovery_matches = [
+                symbol
+                for symbol in normalized_valid_symbols
+                if requested in symbol and symbol.endswith("USDT")
+            ]
+
+            if len(discovery_matches) == 1:
+                return SymbolResolution(
+                    requested=requested,
+                    resolved=discovery_matches[0],
+                    supported=True,
+                    reason="discovered",
+                )
+
+            if len(discovery_matches) > 1:
+                return SymbolResolution(
+                    requested=requested,
+                    resolved=None,
+                    supported=False,
+                    reason="ambiguous",
+                    alternatives=sorted(discovery_matches),
+                )
+
             return SymbolResolution(
                 requested=requested,
                 resolved=None,
@@ -119,5 +143,6 @@ class SymbolResolver:
             if normalize_symbol(symbol)
         ]
         return preferred, alternatives
+
 
 
