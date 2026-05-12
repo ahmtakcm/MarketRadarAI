@@ -87,3 +87,44 @@ def test_watchlist_shows_supported_and_unsupported_symbols(monkeypatch):
     assert "Desteklenen: 2" in replies[0]
     assert "Desteklenmeyen: 2" in replies[0]
     assert "AAPLUSDT, XAUUSDT" in replies[0]
+
+
+def test_add_symbol_accepts_resolved_alias_symbol(monkeypatch):
+    cfg = {"watchlist": {"symbols": []}, "runtime": {}}
+    saved = {}
+    replies = []
+
+    monkeypatch.setattr(telegram_commands, "load_config", lambda: cfg)
+    monkeypatch.setattr(telegram_commands, "save_config", lambda value: saved.update(value))
+    monkeypatch.setattr(telegram_commands, "get_valid_futures_symbols", lambda: ["TESLAUSDT"])
+    monkeypatch.setattr(telegram_commands, "_send_to_chat", lambda _chat_id, text: replies.append(text))
+
+    telegram_commands.handle_command_message(
+        {"chat": {"id": telegram_commands.ADMIN_CHAT_ID}, "text": "/add_symbol TSLAUSDT"},
+        lambda _text: None,
+    )
+
+    assert saved["watchlist"]["symbols"] == ["TESLAUSDT"]
+    assert replies
+    assert "TESLAUSDT" in replies[0]
+    assert "TSLAUSDT" in replies[0]
+
+
+def test_add_symbol_rejects_unknown_symbol_after_resolution(monkeypatch):
+    cfg = {"watchlist": {"symbols": []}, "runtime": {}}
+    saved = {}
+    replies = []
+
+    monkeypatch.setattr(telegram_commands, "load_config", lambda: cfg)
+    monkeypatch.setattr(telegram_commands, "save_config", lambda value: saved.update(value))
+    monkeypatch.setattr(telegram_commands, "get_valid_futures_symbols", lambda: ["BTCUSDT"])
+    monkeypatch.setattr(telegram_commands, "_send_to_chat", lambda _chat_id, text: replies.append(text))
+
+    telegram_commands.handle_command_message(
+        {"chat": {"id": telegram_commands.ADMIN_CHAT_ID}, "text": "/add_symbol UNKNOWNUSDT"},
+        lambda _text: None,
+    )
+
+    assert saved == {}
+    assert replies
+    assert "UNKNOWNUSDT" in replies[0]

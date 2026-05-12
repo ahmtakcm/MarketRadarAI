@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import logging
 import os
@@ -10,6 +10,7 @@ import requests
 
 from core.asset_universe import build_watchlist_text, resolve_asset_universe
 from core.exchange_client import get_valid_futures_symbols
+from core.symbol_resolver import SymbolResolver
 from health_monitor import build_health_text
 from remote_config import get_active_modes, load_config, normalize_symbol, save_config
 from signal_journal import build_performance_today_text
@@ -109,7 +110,7 @@ def _load_last_update_id() -> int:
                 return int(raw)
     except Exception:
         try:
-            logging.warning("Telegram offset okunamadı")
+            logging.warning("Telegram offset okunamadÄ±")
         except Exception:
             pass
     return 0
@@ -120,7 +121,7 @@ def _save_last_update_id(update_id: int) -> None:
         _OFFSET_FILE.write_text(str(int(update_id)), encoding="utf-8")
     except Exception:
         try:
-            logging.exception("Telegram offset dosyası yazılamadı")
+            logging.exception("Telegram offset dosyasÄ± yazÄ±lamadÄ±")
         except Exception:
             pass
 
@@ -254,7 +255,7 @@ def build_status():
 
 def _read_tail(path: Path, lines=40) -> str:
     if not path.exists():
-        return "Dosya bulunamadı."
+        return "Dosya bulunamadÄ±."
     data = path.read_text(encoding="utf-8", errors="ignore").splitlines()
     return "\n".join(data[-lines:])[-3500:]
 
@@ -456,33 +457,39 @@ def handle_command_message(message, send_telegram):
             reply(f"❌ Borsa sembol listesi alınamadı. Daha sonra tekrar dene. Hata: {str(e)[:120]}")
             return
 
-        if symbol not in valid_symbols:
+        resolution = SymbolResolver().resolve(symbol, valid_symbols)
+        if not resolution.supported or not resolution.resolved:
             reply(
                 f"❌ Sembol eklenmedi: {symbol}\n"
                 "Bu çift güncel futures listesinde görünmüyor."
             )
             return
 
+        resolved_symbol = resolution.resolved
         cfg.setdefault("watchlist", {}).setdefault("symbols", [])
 
-        if symbol in cfg["watchlist"]["symbols"]:
-            reply(f"ℹ️ Sembol zaten listede: {symbol}")
+        if resolved_symbol in cfg["watchlist"]["symbols"]:
+            reply(f"ℹ️ Sembol zaten listede: {resolved_symbol}")
             return
 
-        cfg["watchlist"]["symbols"].append(symbol)
+        cfg["watchlist"]["symbols"].append(resolved_symbol)
         save_config(cfg)
-        reply(f"✅ Sembol eklendi: {symbol}")
+
+        if resolved_symbol != symbol:
+            reply(f"✅ Sembol eklendi: {symbol} -> {resolved_symbol}")
+        else:
+            reply(f"✅ Sembol eklendi: {resolved_symbol}")
         return
 
     if cmd == "/remove_symbol":
         if len(parts) < 2:
-            reply("Kullanım: /remove_symbol BTCUSDT")
+            reply("KullanÄ±m: /remove_symbol BTCUSDT")
             return
         symbol = normalize_symbol(parts[1])
         cfg.setdefault("watchlist", {}).setdefault("symbols", [])
         cfg["watchlist"]["symbols"] = [s for s in cfg["watchlist"]["symbols"] if s != symbol]
         save_config(cfg)
-        reply(f"🗑 Sembol çıkarıldı: {symbol}")
+        reply(f"ğŸ—‘ Sembol Ã§Ä±karÄ±ldÄ±: {symbol}")
         return
 
     if cmd == "/performance_today":
@@ -490,7 +497,7 @@ def handle_command_message(message, send_telegram):
         return
 
     if cmd == "/log":
-        reply("📜 SON LOG\n\n" + _read_tail(BASE_DIR / "logs" / "app.log", 25))
+        reply("ğŸ“œ SON LOG\n\n" + _read_tail(BASE_DIR / "logs" / "app.log", 25))
         return
 
     if cmd == "/error_log":
@@ -499,9 +506,9 @@ def handle_command_message(message, send_telegram):
         important = [ln for ln in lines if any(x in ln for x in ["ERROR", "Traceback", "Exception"])]
 
         if important:
-            reply("🚨 HATA LOG\n\n" + "\n".join(important[-30:]))
+            reply("ğŸš¨ HATA LOG\n\n" + "\n".join(important[-30:]))
         else:
-            reply("✅ Son loglarda kritik hata yok.")
+            reply("âœ… Son loglarda kritik hata yok.")
         return
 
 
@@ -528,7 +535,7 @@ def poll_telegram_commands(send_telegram):
         try:
             data = r.json()
         except Exception:
-            logging.exception("Telegram getUpdates JSON parse hatası")
+            logging.exception("Telegram getUpdates JSON parse hatasÄ±")
             return
 
         if not data.get("ok"):
@@ -545,14 +552,15 @@ def poll_telegram_commands(send_telegram):
             if message:
                 text = str(message.get("text") or "").strip()
                 if text:
-                    logging.info("Telegram komut alındı: %s", text.split()[0])
+                    logging.info("Telegram komut alÄ±ndÄ±: %s", text.split()[0])
                 handle_command_message(message, send_telegram)
     except Exception as e:
-        logging.exception("Telegram komut kontrol hatası: %s", e)
+        logging.exception("Telegram komut kontrol hatasÄ±: %s", e)
     finally:
         try:
             _telegram_poll_lock.release()
         except RuntimeError:
             pass
+
 
 
