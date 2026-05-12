@@ -9,7 +9,7 @@ from core.scanner_orchestrator import ScannerRuntime
 from notifiers.telegram_notifier import send_telegram
 from remote_config import get_active_modes, get_config_path, load_config
 from single_instance import single_instance
-from telegram_commands import poll_telegram_commands
+from telegram_commands import poll_telegram_commands, sync_telegram_commands
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -74,6 +74,7 @@ def main():
         send_telegram=send_telegram,
         poll_telegram_commands=poll_telegram_commands,
         send_lifecycle=_send_lifecycle,
+        sync_telegram_commands=sync_telegram_commands,
     )
     runtime.run_forever()
 

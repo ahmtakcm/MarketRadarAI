@@ -1,17 +1,18 @@
 ﻿from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Mapping
 
 DEFAULT_SYMBOL_ALIASES: dict[str, str | dict[str, object]] = {
     "GOLD(XAUT)USDT": "XAUTUSDT",
+    "GOLD": "XAUTUSDT",
     "GOLDUSDT": "XAUTUSDT",
     "XAUUSDT": "XAUTUSDT",
     "SILVER(XAG)USDT": "SILVERUSDT",
+    "SILVER": "SILVERUSDT",
     "XAGUSDT": "SILVERUSDT",
     "COPPER(XCU)USDT": "COPPERUSDT",
+    "COPPER": "COPPERUSDT",
     "XCUUSDT": "COPPERUSDT",
     "GAS(NG)USDT": {
         "preferred": "GASUSDT",
@@ -24,10 +25,14 @@ DEFAULT_SYMBOL_ALIASES: dict[str, str | dict[str, object]] = {
         "status": "review",
     },
     "OIL(WTI)USDT": "USOILUSDT",
+    "OIL(WTI)": "USOILUSDT",
     "WTIUSDT": "USOILUSDT",
     "OIL(BRENT)USDT": "UKOILUSDT",
+    "OIL(BRENT)": "UKOILUSDT",
     "BRENTUSDT": "UKOILUSDT",
+    "SP500": "SPX500USDT",
     "SP500USDT": "SPX500USDT",
+    "QQQ": "QQQSTOCKUSDT",
     "QQQUSDT": "QQQSTOCKUSDT",
     "TSLA": "TESLAUSDT",
     "TSLAUSDT": "TESLAUSDT",
@@ -52,15 +57,6 @@ def normalize_symbol(value: object) -> str:
 
 
 class SymbolResolver:
-
-    def _load_aliases(self) -> dict[str, str | dict[str, object]]:
-        try:
-            path = Path("data/symbol_aliases.json")
-            if path.exists():
-                return json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-        return DEFAULT_SYMBOL_ALIASES
     def __init__(self, aliases: Mapping[str, str | Mapping[str, object]] | None = None) -> None:
         self.aliases = {
             normalize_symbol(key): value
@@ -89,29 +85,6 @@ class SymbolResolver:
 
         alias_entry = self.aliases.get(requested)
         if alias_entry is None:
-            discovery_matches = [
-                symbol
-                for symbol in normalized_valid_symbols
-                if requested in symbol and symbol.endswith("USDT")
-            ]
-
-            if len(discovery_matches) == 1:
-                return SymbolResolution(
-                    requested=requested,
-                    resolved=discovery_matches[0],
-                    supported=True,
-                    reason="discovered",
-                )
-
-            if len(discovery_matches) > 1:
-                return SymbolResolution(
-                    requested=requested,
-                    resolved=None,
-                    supported=False,
-                    reason="ambiguous",
-                    alternatives=sorted(discovery_matches),
-                )
-
             return SymbolResolution(
                 requested=requested,
                 resolved=None,

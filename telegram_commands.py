@@ -514,11 +514,6 @@ def handle_command_message(message, send_telegram):
 
     reply("Bilinmeyen komut. /help yaz.")
 def poll_telegram_commands(send_telegram):
-    try:
-        sync_telegram_commands()
-    except Exception:
-        logging.exception("Telegram command sync failed")
-
     # TELEGRAM_COMMAND_THREAD_PATCH_V1: non-overlapping getUpdates with persistent offset.
     global _last_update_id
     if not _telegram_poll_lock.acquire(blocking=False):

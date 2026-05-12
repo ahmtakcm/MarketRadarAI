@@ -1,6 +1,11 @@
 import telegram_commands
 
 
+class _FakeTelegramResponse:
+    def json(self):
+        return {"ok": True, "result": []}
+
+
 def test_active_dispatcher_group_commands_remain_disabled():
     assert telegram_commands.GROUP_SAFE_COMMANDS == set()
 
@@ -27,6 +32,17 @@ def test_active_dispatcher_admin_command_set_is_stable():
         "/log",
         "/error_log",
     }
+
+
+def test_polling_does_not_own_command_menu_sync(monkeypatch):
+    sync_calls = []
+
+    monkeypatch.setattr(telegram_commands, "sync_telegram_commands", lambda: sync_calls.append("sync"))
+    monkeypatch.setattr(telegram_commands.requests, "get", lambda *_args, **_kwargs: _FakeTelegramResponse())
+
+    telegram_commands.poll_telegram_commands(lambda _text: None)
+
+    assert sync_calls == []
 
 
 def test_scan_now_sets_force_scan_flag_without_changing_modes(monkeypatch):

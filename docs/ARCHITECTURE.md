@@ -25,7 +25,7 @@ This document describes the current architecture and the safe migration directio
 2. It logs startup visibility: exchange, active modes, watchlist count, state path, and runtime config path.
 3. It creates `core.scanner_orchestrator.ScannerRuntime`.
 4. `ScannerRuntime` loads scanner state through `core.state_store.load_state`.
-5. It starts Telegram command polling in-process.
+5. It syncs the Telegram command menu once, then starts Telegram command polling in-process.
 6. It discovers MEXC futures symbols and resolves the watchlist through `core.asset_universe`.
 7. It scans active mode plans on candle-close scheduling.
 8. It sends Telegram notifications for new signal messages.
@@ -36,11 +36,12 @@ This document describes the current architecture and the safe migration directio
 ## Telegram Flow
 
 - `telegram_commands.py` is the active dispatcher.
+- `core.scanner_orchestrator.ScannerRuntime` owns one-time command menu sync.
 - Admin-private commands are the current production command set.
 - Group commands are currently disabled through `GROUP_SAFE_COMMANDS = set()`.
 - `/scan_now` sets `runtime.force_scan_once = true`.
-- `main.sleep_with_command_polling` exits sleep early when that flag is visible.
-- `main.consume_force_scan_request` clears the flag before the next scanner iteration.
+- `ScannerRuntime.sleep_with_command_polling` exits sleep early when that flag is visible.
+- `ScannerRuntime.consume_force_scan_request` clears the flag before the next scanner iteration.
 
 ## Scanner Flow
 
@@ -73,7 +74,9 @@ This document describes the current architecture and the safe migration directio
 - `core.exchange_client` is the current MEXC market-data client.
 - It converts plain symbols to MEXC contract symbols.
 - It normalizes kline rows into scanner candle dictionaries.
+- `core.symbol_resolver` is the single symbol interpretation layer for exact matches and explicit aliases.
 - `core.asset_universe` treats MEXC as the active crypto-futures source and exposes unsupported watchlist entries instead of silently dropping them.
+- `core.symbol_catalog` is read-only enrichment metadata and does not route or validate symbols.
 - Multi-exchange adapters are deferred.
 
 ## Signal Flow
@@ -123,7 +126,7 @@ Most critical production risks:
 - Runtime config writes could leave the working tree dirty.
 - State writes were non-atomic.
 - Corrupt state/config recovery was implicit and not visible.
-- Telegram polling currently runs inside `main.py`; ownership is still a future risk.
+- Telegram polling currently runs inside the scanner process; ownership is explicit in `ScannerRuntime`, but a dedicated poller remains a future risk.
 - Command authorization uses hardcoded chat IDs and must remain stable until a dedicated migration.
 
 Most risky runtime files:
@@ -138,7 +141,7 @@ Most risky race conditions:
 
 - Telegram commands and scanner both load/save runtime config.
 - Scanner writes state while a process exits unexpectedly.
-- Multiple in-process Telegram polling paths rely on a process-local lock.
+- Multiple in-process Telegram polling paths rely on a process-local lock; command menu sync is no longer part of each polling call.
 
 Most risky recovery scenarios:
 
@@ -166,12 +169,13 @@ Risks reduced in this PR:
 - Corrupt runtime config and scanner state get safe fallback recovery.
 - Startup logs expose active exchange, modes, watchlist count, and persistence paths.
 - Asset universe logs expose requested, supported, and unsupported watchlist counts.
+- Telegram command menu sync has a single runtime owner instead of being coupled to every polling call.
 - Scan loop logs expose start/finish, active modes, symbol count, and duration without changing scanner behavior.
 - Passive command registry and active dispatcher command set are tested.
 
 Deferred risks:
 
-- Move Telegram polling ownership out of `main.py`.
+- Move Telegram polling ownership out of the scanner process if a dedicated Telegram service is reintroduced.
 - Add a repo-managed systemd unit once production unit contents are confirmed.
 - Add file locking or compare-and-swap for runtime config writes.
 - Move hardcoded Telegram chat IDs into local config without changing behavior.

@@ -31,6 +31,7 @@ DEGRADED_REMINDER_SECONDS = 1800
 SendTelegram = Callable[[str], None]
 PollTelegramCommands = Callable[[SendTelegram], None]
 SendLifecycle = Callable[[str, dict[str, object] | None], None]
+SyncTelegramCommands = Callable[[], None]
 
 
 def _now_text() -> str:
@@ -102,11 +103,14 @@ class ScannerRuntime:
         send_telegram: SendTelegram,
         poll_telegram_commands: PollTelegramCommands,
         send_lifecycle: SendLifecycle | None = None,
+        sync_telegram_commands: SyncTelegramCommands | None = None,
     ) -> None:
         self.send_telegram = send_telegram
         self.poll_telegram_commands = poll_telegram_commands
         self.send_lifecycle = send_lifecycle or (lambda _title, _fields=None: None)
+        self.sync_telegram_commands = sync_telegram_commands
         self._telegram_command_thread_started = False
+        self._telegram_commands_synced = False
 
     def _safe_symbols(self, values) -> list[str]:
         return normalize_asset_symbols(values)
@@ -311,6 +315,7 @@ class ScannerRuntime:
     def start_telegram_command_thread(self) -> None:
         if self._telegram_command_thread_started:
             return
+        self.sync_telegram_menu_once()
         thread = threading.Thread(
             target=self._telegram_command_thread_loop,
             name="telegram-command-poller",
@@ -318,6 +323,15 @@ class ScannerRuntime:
         )
         thread.start()
         self._telegram_command_thread_started = True
+
+    def sync_telegram_menu_once(self) -> None:
+        if self._telegram_commands_synced or self.sync_telegram_commands is None:
+            return
+        try:
+            self.sync_telegram_commands()
+            self._telegram_commands_synced = True
+        except Exception:
+            logging.exception("Telegram command sync failed")
 
     def run_scan_cycle(self, state, symbols) -> None:
         if not bot_allowed_to_scan():

@@ -15,6 +15,20 @@ def _runtime():
     )
 
 
+def test_orchestrator_syncs_telegram_menu_once_before_polling_thread():
+    calls = []
+    runtime = ScannerRuntime(
+        send_telegram=lambda _text: None,
+        poll_telegram_commands=lambda _send: None,
+        sync_telegram_commands=lambda: calls.append("sync"),
+    )
+
+    runtime.sync_telegram_menu_once()
+    runtime.sync_telegram_menu_once()
+
+    assert calls == ["sync"]
+
+
 def test_orchestrator_requested_symbols_falls_back_without_config(monkeypatch):
     original_import = builtins.__import__
     sys.modules.pop("config", None)
