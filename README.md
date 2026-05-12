@@ -5,7 +5,7 @@
 [![RepoWiki](https://repowiki.com/badge.svg)](https://repowiki.com/ahmtakcm/mexc-tarama-bot)
 
 MarketRadarAI is a multi-timeframe market scanning and Telegram signal notification bot.
-The current market-data source is MEXC futures.
+The current market-data source is MEXC futures. MEXC is a data-source detail, not the product identity.
 
 The repository name can stay `mexc-tarama-bot` for now, but user-facing project identity should refer to MarketRadarAI.
 
@@ -29,6 +29,11 @@ The repository name can stay `mexc-tarama-bot` for now, but user-facing project 
 - `storage/`: runtime locks and cached exchange symbol data.
 - `logs/`: runtime logs.
 
-See `docs/RUNTIME_BEHAVIOR.md`, `docs/ARCHITECTURE.md`, and `docs/DEPLOYMENT.md` for the current behavior map, persistence inventory, deployment checklist, and deferred hardening work.
+## Asset Universe
+
+MarketRadarAI keeps the requested watchlist separate from the symbols supported by the active data source.
+Unsupported entries remain visible in startup logs and Telegram `/watchlist`; they are not silently scanned or dropped.
+
+See `docs/RUNTIME_BEHAVIOR.md`, `docs/ASSET_UNIVERSE.md`, `docs/SIGNAL_LIFECYCLE.md`, `docs/ARCHITECTURE.md`, and `docs/DEPLOYMENT.md` for the current behavior map, persistence inventory, deployment checklist, and deferred hardening work.
 
 

@@ -8,6 +8,11 @@ import time
 from pathlib import Path
 
 from config import APP_LOG_PATH, REQUESTED_SYMBOLS, STATE_FILE_PATH
+from core.asset_universe import (
+    format_asset_resolution_log,
+    normalize_asset_symbols,
+    resolve_asset_universe,
+)
 from core.exchange_client import fetch_klines, get_kline_limit
 from core.observability import (
     build_scan_observation,
@@ -83,14 +88,7 @@ def _send_lifecycle(title, fields=None):
 
 
 def _safe_symbols(values):
-    result = []
-    seen = set()
-    for value in values or []:
-        sym = str(value or "").upper().strip()
-        if sym and sym not in seen:
-            result.append(sym)
-            seen.add(sym)
-    return result
+    return normalize_asset_symbols(values)
 
 
 def _save_symbol_cache(symbols, source="live"):
@@ -281,14 +279,16 @@ def apply_watchlist_filter(discovered_symbols):
         logging.warning("Watchlist boş; tarama yapılmayacak.")
         return []
 
-    discovered = set(_safe_symbols(discovered_symbols))
-    selected = [s for s in wanted if s in discovered]
+    resolution = resolve_asset_universe(wanted, discovered_symbols)
+    logging.info(format_asset_resolution_log(resolution))
 
-    missing = [s for s in wanted if s not in discovered]
-    if missing:
-        logging.warning("Watchlist içinde borsada doğrulanamayan semboller var: %s", ", ".join(missing))
+    if resolution.unsupported:
+        logging.warning(
+            "Watchlist icinde veri kaynaginda desteklenmeyen semboller var: %s",
+            ", ".join(resolution.unsupported),
+        )
 
-    return selected
+    return resolution.supported
 
 
 

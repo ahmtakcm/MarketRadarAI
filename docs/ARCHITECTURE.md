@@ -6,7 +6,7 @@ This document describes the current architecture and the safe migration directio
 ## Folder Structure
 
 - `main.py`: long-running scanner entry point.
-- `core/`: exchange access, scanner, scheduler, indicators, signal engine, performance tracking, and state persistence.
+- `core/`: asset universe resolution, exchange access, scanner, scheduler, indicators, signal engine, performance tracking, observability, and state persistence.
 - `strategies/`: individual signal strategies used by `core.signal_engine`.
 - `telegram_commands.py`: active Telegram command dispatcher and Telegram polling implementation.
 - `commands/`: passive command registry used by tooling and tests. It must not replace the active dispatcher without a separate PR.
@@ -24,7 +24,7 @@ This document describes the current architecture and the safe migration directio
 2. It loads runtime/user config through `remote_config.load_config`.
 3. It logs startup visibility: exchange, active modes, watchlist count, state path, and runtime config path.
 4. It starts Telegram command polling in-process.
-5. It discovers MEXC futures symbols and applies the watchlist filter.
+5. It discovers MEXC futures symbols and resolves the watchlist through `core.asset_universe`.
 6. It scans active mode plans on candle-close scheduling.
 7. It sends Telegram notifications for new signal messages.
 8. It writes state and journals.
@@ -42,6 +42,7 @@ This document describes the current architecture and the safe migration directio
 
 ## Scanner Flow
 
+- `core.asset_universe` separates requested watchlist entries from symbols supported by the active source.
 - `core.scheduler` chooses active mode plans from `remote_config`.
 - `core.scanner` fetches entry/setup/bias candles, builds levels, runs strategies, applies MTF filters, and registers pending performance tracking.
 - `core.performance_tracker` finalizes signal outcomes after configured future bar horizons.
@@ -69,6 +70,7 @@ This document describes the current architecture and the safe migration directio
 - `core.exchange_client` is the current MEXC market-data client.
 - It converts plain symbols to MEXC contract symbols.
 - It normalizes kline rows into scanner candle dictionaries.
+- `core.asset_universe` treats MEXC as the active crypto-futures source and exposes unsupported watchlist entries instead of silently dropping them.
 - Multi-exchange adapters are deferred.
 
 ## Signal Flow
@@ -160,6 +162,7 @@ Risks reduced in this PR:
 - Runtime config and scanner state use atomic writes.
 - Corrupt runtime config and scanner state get safe fallback recovery.
 - Startup logs expose active exchange, modes, watchlist count, and persistence paths.
+- Asset universe logs expose requested, supported, and unsupported watchlist counts.
 - Scan loop logs expose start/finish, active modes, symbol count, and duration without changing scanner behavior.
 - Passive command registry and active dispatcher command set are tested.
 
