@@ -1,23 +1,64 @@
 import logging
 import time
+from pathlib import Path
 
-from config import COMMENTARY_SYMBOLS, SIGNALS_LOG_PATH
 from core.indicator_engine import build_levels
 from core.market_data_service import (
     DEFAULT_MARKET_DATA_SERVICE,
     MarketDataService,
 )
 from core.mtf_signal_engine import analyze_mtf_signal
-from core.performance_tracker import register_signal
-from core.scheduler import get_active_mode_plans
-from core.signal_engine import build_daily_commentary, generate_signals
 from core.state_store import append_jsonl
 from macro_bridge import get_macro_signal, macro_direction_for_symbol
 from remote_config import load_config
 
+BASE_DIR = Path(__file__).resolve().parents[1]
+
 
 def _service(market_data_service: MarketDataService | None = None) -> MarketDataService:
     return market_data_service or DEFAULT_MARKET_DATA_SERVICE
+
+
+def _signals_log_path():
+    try:
+        from config import SIGNALS_LOG_PATH
+
+        return SIGNALS_LOG_PATH
+    except Exception:
+        return BASE_DIR / "data" / "signals_log.jsonl"
+
+
+def _commentary_symbols() -> set[str]:
+    try:
+        from config import COMMENTARY_SYMBOLS
+
+        return set(COMMENTARY_SYMBOLS)
+    except Exception:
+        return set()
+
+
+def _active_mode_plans():
+    from core.scheduler import get_active_mode_plans
+
+    return get_active_mode_plans()
+
+
+def _generate_signals(context):
+    from core.signal_engine import generate_signals
+
+    return generate_signals(context)
+
+
+def _build_daily_commentary(symbol, levels):
+    from core.signal_engine import build_daily_commentary
+
+    return build_daily_commentary(symbol, levels)
+
+
+def _register_signal(state, symbol, timeframe, strategy_name, signal, reason, levels):
+    from core.performance_tracker import register_signal
+
+    register_signal(state, symbol, timeframe, strategy_name, signal, reason, levels)
 
 
 def get_active_symbols(market_data_service: MarketDataService | None = None):
@@ -41,7 +82,7 @@ def log_signal(symbol, timeframe, strategy_name, signal, reason, levels, mode=No
         "center": levels["center"],
         "close_time": levels["close_time"],
     }
-    append_jsonl(SIGNALS_LOG_PATH, row)
+    append_jsonl(_signals_log_path(), row)
 
 
 def _fetch_context(symbol, tf, market_data_service: MarketDataService | None = None):
@@ -86,7 +127,7 @@ def _bias_text(entry_signal, bias_levels, setup_levels, plan):
 
 def build_signal_lines(symbols, state, market_data_service: MarketDataService | None = None):
     lines = []
-    plans = get_active_mode_plans()
+    plans = _active_mode_plans()
     cfg = load_config()
 
     if not plans:
@@ -130,7 +171,7 @@ def build_signal_lines(symbols, state, market_data_service: MarketDataService | 
                     "indicator_cache": {},
                 }
 
-                signals = generate_signals(strategy_context)
+                signals = _generate_signals(strategy_context)
                 state["last_processed_close_times"][close_key] = current_close
 
                 for sig in signals:
@@ -203,7 +244,7 @@ def build_signal_lines(symbols, state, market_data_service: MarketDataService | 
 
                     results.append(message_block)
                     log_signal(symbol, entry_tf, strategy_name, signal, reason, entry_levels, mode=mode)
-                    register_signal(state, symbol, entry_tf, strategy_name, signal, reason, entry_levels)
+                    _register_signal(state, symbol, entry_tf, strategy_name, signal, reason, entry_levels)
 
             if results:
                 block = f"{symbol}\n" + "\n".join(results)
@@ -228,9 +269,10 @@ def build_signal_message(symbols, state, market_data_service: MarketDataService 
 def get_daily_commentaries(symbols, state, market_data_service: MarketDataService | None = None):
     comments = []
     state.setdefault("daily_commentary", {})
+    commentary_symbols = _commentary_symbols()
 
     for symbol in symbols:
-        if symbol not in COMMENTARY_SYMBOLS:
+        if symbol not in commentary_symbols:
             continue
 
         service = _service(market_data_service)
@@ -246,7 +288,7 @@ def get_daily_commentaries(symbols, state, market_data_service: MarketDataServic
         if state["daily_commentary"].get(symbol) == close_time:
             continue
 
-        comments.append(build_daily_commentary(symbol, levels))
+        comments.append(_build_daily_commentary(symbol, levels))
         state["daily_commentary"][symbol] = close_time
 
     return comments

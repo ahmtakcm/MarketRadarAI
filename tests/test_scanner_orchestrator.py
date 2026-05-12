@@ -1,4 +1,5 @@
 import builtins
+import importlib
 import sys
 from pathlib import Path
 
@@ -56,6 +57,23 @@ def test_orchestrator_requested_symbols_falls_back_without_config(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", guarded_import)
 
     assert scanner_orchestrator.get_requested_symbols() == []
+
+
+def test_scanner_import_with_injected_market_data_service_does_not_require_settings(monkeypatch):
+    original_import = builtins.__import__
+    sys.modules.pop("config", None)
+    sys.modules.pop("core.scanner", None)
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "config":
+            raise FileNotFoundError("settings.json missing")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+
+    scanner = importlib.import_module("core.scanner")
+
+    assert scanner.get_active_symbols(FakeMarketDataService()) == ["BTCUSDT", "TESLAUSDT"]
 
 
 def test_orchestrator_watchlist_filter_keeps_supported_and_logs_unsupported(monkeypatch, caplog):
