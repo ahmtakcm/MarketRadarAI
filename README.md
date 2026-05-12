@@ -28,12 +28,13 @@ The repository name can stay `mexc-tarama-bot` for now, but user-facing project 
 - `data/`: runtime state and signal/performance journals.
 - `storage/`: runtime locks and cached exchange symbol data.
 - `logs/`: runtime logs.
+- `core/scanner_orchestrator.py`: scanner runtime loop, symbol refresh, scan-cycle orchestration, and `/scan_now` consume flow.
 
 ## Asset Universe
 
 MarketRadarAI keeps the requested watchlist separate from the symbols supported by the active data source.
 Unsupported entries remain visible in startup logs and Telegram `/watchlist`; they are not silently scanned or dropped.
 
-See `docs/RUNTIME_BEHAVIOR.md`, `docs/ASSET_UNIVERSE.md`, `docs/SIGNAL_LIFECYCLE.md`, `docs/ARCHITECTURE.md`, and `docs/DEPLOYMENT.md` for the current behavior map, persistence inventory, deployment checklist, and deferred hardening work.
+See `docs/RUNTIME_BEHAVIOR.md`, `docs/SCANNER_ORCHESTRATION.md`, `docs/ASSET_UNIVERSE.md`, `docs/SIGNAL_LIFECYCLE.md`, `docs/ARCHITECTURE.md`, and `docs/DEPLOYMENT.md` for the current behavior map, persistence inventory, deployment checklist, and deferred hardening work.
 
 

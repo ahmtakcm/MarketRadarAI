@@ -5,7 +5,8 @@ This document describes the current architecture and the safe migration directio
 
 ## Folder Structure
 
-- `main.py`: long-running scanner entry point.
+- `main.py`: process entry point, logging setup, single-instance guard, and runtime bootstrap.
+- `core/scanner_orchestrator.py`: long-running scanner runtime orchestration.
 - `core/`: asset universe resolution, exchange access, scanner, scheduler, indicators, signal engine, performance tracking, observability, and state persistence.
 - `strategies/`: individual signal strategies used by `core.signal_engine`.
 - `telegram_commands.py`: active Telegram command dispatcher and Telegram polling implementation.
@@ -20,15 +21,16 @@ This document describes the current architecture and the safe migration directio
 
 ## Main Flow
 
-1. `main.py` loads scanner state through `core.state_store.load_state`.
-2. It loads runtime/user config through `remote_config.load_config`.
-3. It logs startup visibility: exchange, active modes, watchlist count, state path, and runtime config path.
-4. It starts Telegram command polling in-process.
-5. It discovers MEXC futures symbols and resolves the watchlist through `core.asset_universe`.
-6. It scans active mode plans on candle-close scheduling.
-7. It sends Telegram notifications for new signal messages.
-8. It writes state and journals.
-9. It is intended to stay alive as a daemon. A normal return from `main.py` is not the expected
+1. `main.py` loads runtime/user config for startup metadata.
+2. It logs startup visibility: exchange, active modes, watchlist count, state path, and runtime config path.
+3. It creates `core.scanner_orchestrator.ScannerRuntime`.
+4. `ScannerRuntime` loads scanner state through `core.state_store.load_state`.
+5. It starts Telegram command polling in-process.
+6. It discovers MEXC futures symbols and resolves the watchlist through `core.asset_universe`.
+7. It scans active mode plans on candle-close scheduling.
+8. It sends Telegram notifications for new signal messages.
+9. It writes state and journals.
+10. It is intended to stay alive as a daemon. A normal return from `main.py` is not the expected
    service lifecycle.
 
 ## Telegram Flow
@@ -43,6 +45,7 @@ This document describes the current architecture and the safe migration directio
 ## Scanner Flow
 
 - `core.asset_universe` separates requested watchlist entries from symbols supported by the active source.
+- `core.scanner_orchestrator.ScannerRuntime` owns symbol refresh, force-scan consume, scan-cycle logging, and loop error isolation.
 - `core.scheduler` chooses active mode plans from `remote_config`.
 - `core.scanner` fetches entry/setup/bias candles, builds levels, runs strategies, applies MTF filters, and registers pending performance tracking.
 - `core.performance_tracker` finalizes signal outcomes after configured future bar horizons.

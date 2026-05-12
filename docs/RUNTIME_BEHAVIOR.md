@@ -1,10 +1,11 @@
 # MarketRadarAI Runtime Behavior
 
-`main.py` is the daemon entrypoint. It should stay alive under systemd and owns the scanner process.
+`main.py` is the daemon entrypoint. It should stay alive under systemd and bootstrap the scanner runtime.
 
 ## Ownership
 
-- `main.py`: process entrypoint, single-instance guard, scanner loop orchestration.
+- `main.py`: process entrypoint, logging setup, single-instance guard, graceful shutdown, runtime bootstrap.
+- `core.scanner_orchestrator.ScannerRuntime`: scanner loop orchestration, symbol refresh, `/scan_now` consume, and scan cycle ownership.
 - `core.asset_universe`: watchlist-to-source symbol resolution.
 - `core.scanner`: signal message construction from supported symbols.
 - `core.scheduler`: next scan sleep interval.
@@ -84,6 +85,7 @@ The production unit should use `Restart=on-failure`, not `Restart=always`, becau
 
 - Move Telegram polling ownership out of `main.py`.
 - Split `telegram_commands.py` into smaller runtime modules.
+- Add an explicit runtime stop token for graceful thread shutdown and bounded integration tests.
 - Introduce a real exchange adapter interface without changing scanner candle contracts.
 - Add compare-and-swap or file locking around runtime config writes.
 - Rename repository/package paths after service and deployment migration are validated.
