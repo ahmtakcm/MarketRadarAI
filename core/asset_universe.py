@@ -106,17 +106,17 @@ def build_watchlist_text(resolution: AssetResolution) -> str:
     lines = [
         "MarketRadarAI WATCHLIST",
         "",
-        f"Veri kaynagi: {resolution.exchange}",
-        f"Toplam: {resolution.requested_count}",
-        f"Desteklenen: {resolution.supported_count}",
-        f"Desteklenmeyen: {resolution.unsupported_count}",
+        (
+            f"Summary: {resolution.exchange} | requested {resolution.requested_count} | "
+            f"supported {resolution.supported_count} | unsupported {resolution.unsupported_count}"
+        ),
         "",
     ]
 
     if resolution.supported:
         lines.extend(
             [
-                "Taranacak semboller:",
+                "Supported scan symbols:",
                 ", ".join(resolution.supported),
                 "",
             ]
@@ -130,7 +130,7 @@ def build_watchlist_text(resolution: AssetResolution) -> str:
         )
 
     if resolution.resolved_aliases:
-        lines.append("Cozumlenen semboller:")
+        lines.append("Resolved aliases:")
         lines.extend(
             f"{requested} -> {resolved}"
             for requested, resolved in resolution.resolved_aliases.items()
@@ -140,13 +140,13 @@ def build_watchlist_text(resolution: AssetResolution) -> str:
     if resolution.unsupported:
         lines.extend(
             [
-                "Desteklenmeyen semboller:",
+                "Unsupported symbols:",
                 ", ".join(resolution.unsupported),
                 "",
                 f"Not: {resolution.exchange} futures veri kaynagi yalnizca desteklenen crypto sembollerini tarar.",
             ]
         )
     else:
-        lines.append("Not: Tum watchlist sembolleri mevcut veri kaynaginda destekleniyor.")
+        lines.append("Not: Tum watchlist sembolleri destekleniyor.")
 
     return "\n".join(lines).strip()
