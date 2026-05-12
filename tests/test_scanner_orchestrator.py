@@ -99,8 +99,12 @@ def test_orchestrator_force_scan_consume_clears_flag_and_preserves_modes(monkeyp
     }
     saved = {}
 
-    monkeypatch.setattr(scanner_orchestrator, "load_config", lambda: cfg)
-    monkeypatch.setattr(scanner_orchestrator, "save_config", lambda value: saved.update(value))
+    def fake_update_config(mutator):
+        mutator(cfg)
+        saved.update(cfg)
+        return cfg
+
+    monkeypatch.setattr(scanner_orchestrator, "update_config", fake_update_config)
 
     assert _runtime().consume_force_scan_request() is True
     assert saved["runtime"]["force_scan_once"] is False

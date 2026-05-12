@@ -56,6 +56,19 @@ Group commands are currently disabled. The command set is unchanged by the asset
 - Logs: `logs/app.log` and journald stderr stream.
 - Manual backups: `backups/`.
 
+## Runtime Config Write Safety
+
+`runtime/remote_config.json` is the only mutable runtime config target. It is ignored by git and must not be restored from the tracked legacy `remote_config.json` unless a manual recovery explicitly requires it.
+
+Runtime config writes use two layers:
+
+- Atomic write: config is written to a temporary file, flushed, fsynced, then moved into place.
+- File lock: read-modify-write updates are serialized through `runtime/remote_config.lock`.
+
+Telegram commands and scanner runtime code must use `remote_config.update_config(mutator)` for read-modify-write changes such as `/scan_now`, mode/filter toggles, and watchlist updates. Direct `load_config() -> mutate -> save_config()` is not safe for concurrent writers.
+
+If the runtime config is corrupt, it is archived as `remote_config.json.broken` and recreated from defaults. Existing schema migration and legacy seeding behavior remain unchanged.
+
 ## Loop Model
 
 1. Load state and runtime config.
@@ -90,5 +103,5 @@ The production unit should use `Restart=on-failure`, not `Restart=always`, becau
 - Split `telegram_commands.py` into smaller runtime modules.
 - Add an explicit runtime stop token for graceful thread shutdown and bounded integration tests.
 - Introduce a real exchange adapter interface without changing scanner candle contracts.
-- Add compare-and-swap or file locking around runtime config writes.
+- Add file locking to scanner state writes if multiple state writers are introduced.
 - Rename repository/package paths after service and deployment migration are validated.

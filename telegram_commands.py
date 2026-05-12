@@ -12,7 +12,7 @@ from core.asset_universe import build_watchlist_text, resolve_asset_universe
 from core.market_data_service import get_valid_futures_symbols
 from core.symbol_resolver import SymbolResolver
 from health_monitor import build_health_text
-from remote_config import get_active_modes, load_config, normalize_symbol, save_config
+from remote_config import get_active_modes, load_config, normalize_symbol, update_config
 from signal_journal import build_performance_today_text
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
@@ -325,6 +325,13 @@ def _watchlist_text(cfg):
     return build_watchlist_text(resolve_asset_universe(symbols, valid_symbols))
 
 
+def _set_config_value(section: str, key: str, value) -> None:
+    def mutate(current):
+        current.setdefault(section, {})[key] = value
+
+    update_config(mutate)
+
+
 def handle_command_message(message, send_telegram):
     chat_id = str(message.get("chat", {}).get("id", ""))
 
@@ -378,8 +385,7 @@ def handle_command_message(message, send_telegram):
         return
 
     if cmd == "/scan_now":
-        cfg.setdefault("runtime", {})["force_scan_once"] = True
-        save_config(cfg)
+        _set_config_value("runtime", "force_scan_once", True)
         reply("Anlik tarama tetiklendi. Aktif modlar icin mum kapanisi beklenmeden tarama baslatiliyor.")
         return
 
@@ -402,8 +408,7 @@ def handle_command_message(message, send_telegram):
 
     if cmd in ["/scalp_on", "/scalp_off"]:
         state = cmd.strip("/").split("_")[1]
-        cfg.setdefault("modes", {})["scalp"] = state == "on"
-        save_config(cfg)
+        _set_config_value("modes", "scalp", state == "on")
         reply(f"Scalp mode {'enabled' if state == 'on' else 'disabled'}.")
         return
 
@@ -416,26 +421,22 @@ def handle_command_message(message, send_telegram):
         return
 
     if cmd == "/fake_filter_on":
-        cfg.setdefault("filters", {})["fake_breakout_filter"] = True
-        save_config(cfg)
+        _set_config_value("filters", "fake_breakout_filter", True)
         reply("Fake breakout filtresi acildi.")
         return
 
     if cmd == "/fake_filter_off":
-        cfg.setdefault("filters", {})["fake_breakout_filter"] = False
-        save_config(cfg)
+        _set_config_value("filters", "fake_breakout_filter", False)
         reply("Fake breakout filtresi kapatildi.")
         return
 
     if cmd == "/volume_filter_on":
-        cfg.setdefault("filters", {})["volume_confirmation"] = True
-        save_config(cfg)
+        _set_config_value("filters", "volume_confirmation", True)
         reply("Volume filtresi acildi.")
         return
 
     if cmd == "/volume_filter_off":
-        cfg.setdefault("filters", {})["volume_confirmation"] = False
-        save_config(cfg)
+        _set_config_value("filters", "volume_confirmation", False)
         reply("Volume filtresi kapatildi.")
         return
 
@@ -466,14 +467,20 @@ def handle_command_message(message, send_telegram):
             return
 
         resolved_symbol = resolution.resolved
-        cfg.setdefault("watchlist", {}).setdefault("symbols", [])
+        result = {"already_present": False}
 
-        if resolved_symbol in cfg["watchlist"]["symbols"]:
+        def add_symbol(current):
+            symbols = current.setdefault("watchlist", {}).setdefault("symbols", [])
+            if resolved_symbol in symbols:
+                result["already_present"] = True
+                return
+            symbols.append(resolved_symbol)
+
+        update_config(add_symbol)
+
+        if result["already_present"]:
             reply(f"ℹ️ Sembol zaten listede: {resolved_symbol}")
             return
-
-        cfg["watchlist"]["symbols"].append(resolved_symbol)
-        save_config(cfg)
 
         if resolved_symbol != symbol:
             reply(f"✅ Sembol eklendi: {symbol} -> {resolved_symbol}")
@@ -486,9 +493,14 @@ def handle_command_message(message, send_telegram):
             reply("KullanÄ±m: /remove_symbol BTCUSDT")
             return
         symbol = normalize_symbol(parts[1])
-        cfg.setdefault("watchlist", {}).setdefault("symbols", [])
-        cfg["watchlist"]["symbols"] = [s for s in cfg["watchlist"]["symbols"] if s != symbol]
-        save_config(cfg)
+
+        def remove_symbol(current):
+            current.setdefault("watchlist", {}).setdefault("symbols", [])
+            current["watchlist"]["symbols"] = [
+                item for item in current["watchlist"]["symbols"] if item != symbol
+            ]
+
+        update_config(remove_symbol)
         reply(f"ğŸ—‘ Sembol Ã§Ä±karÄ±ldÄ±: {symbol}")
         return
 
