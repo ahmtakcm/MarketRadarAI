@@ -10,13 +10,14 @@ product identity is MarketRadarAI.
 - Recommended description: `MarketRadarAI scanner service`
 - WorkingDirectory: production checkout path, usually the server `mexc-tarama-bot` directory
 - ExecStart: project virtualenv or Python interpreter running `main.py`
-- Restart policy: `Restart=always` or `Restart=on-failure`, depending on current server policy
+- Restart policy: prefer `Restart=on-failure`. Avoid `Restart=always` unless intentionally running one-shot jobs.
 - RestartSec: keep a small delay, for example `RestartSec=5`
-- Environment:
-- `MEXC_LOG_LEVEL=INFO` unless debugging
-- `MARKETRADAR_RUNTIME_CONFIG=/absolute/path/to/runtime/remote_config.json` when overriding the default
+- StandardOutput: `journal`
+- StandardError: `journal`
+- Environment: `MEXC_LOG_LEVEL=INFO` unless debugging
+- Environment: `MARKETRADAR_RUNTIME_CONFIG=/absolute/path/to/runtime/remote_config.json` when overriding the default
 - Runtime config: `runtime/remote_config.json`
-- App log: `logs/app.log`
+- App log: `logs/app.log`; the same application log stream is also written to stderr for journald capture.
 - System log: `journalctl -u mexc-tarama-bot.service`
 
 ## Deploy Flow
@@ -34,9 +35,14 @@ product identity is MarketRadarAI.
 
 ## Restart Loop Triage
 
-Past production observations included a high systemd restart counter. This PR does not try to
-change restart policy or scanner behavior. It improves visibility so the next incident has a
-clearer trail.
+Past production observations included a high systemd restart counter and `Deactivated successfully`.
+That message means the Python process exited cleanly with status 0, not that systemd saw a crash.
+MarketRadarAI is designed as a long-running daemon from `main.py`; a clean exit is expected only for
+operator shutdown, duplicate-instance guard exit, or a service command that starts the wrong process.
+
+If the unit uses `Restart=always`, systemd will restart even clean exits. That can turn duplicate
+instance guard exits into a restart counter loop. Prefer `Restart=on-failure` for this daemon so
+clean exits stay stopped while real crashes still restart.
 
 Check these first:
 
@@ -51,8 +57,12 @@ The app now logs:
 - startup success after symbols are loaded and watchlist filtering is applied
 - scan loop start and finish, including active modes and symbol count
 - `/scan_now` flag consumption with active modes and watchlist count
+- duplicate-instance guard exits, including the lock path
 - fatal crash visibility before process exit
 - KeyboardInterrupt shutdown visibility
+
+Application logs are written to both `logs/app.log` and stderr. With `StandardError=journal`, the
+same startup, scan, shutdown, and fatal-crash lines should be visible in `journalctl`.
 
 ## Safe Service Rename Plan
 

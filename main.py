@@ -37,11 +37,16 @@ DEGRADED_REMINDER_SECONDS = 1800
 
 LOG_LEVEL = os.getenv("MEXC_LOG_LEVEL", "INFO").upper()
 LOG_LEVEL_VALUE = getattr(logging, LOG_LEVEL, logging.INFO)
+LOG_FORMAT = "%(asctime)s | %(levelname)s | %(message)s"
 
+APP_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
-    filename=APP_LOG_PATH,
     level=LOG_LEVEL_VALUE,
-    format="%(asctime)s | %(levelname)s | %(message)s"
+    format=LOG_FORMAT,
+    handlers=[
+        logging.FileHandler(APP_LOG_PATH, encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
 )
 
 

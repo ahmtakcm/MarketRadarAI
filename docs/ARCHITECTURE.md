@@ -28,6 +28,8 @@ This document describes the current architecture and the safe migration directio
 6. It scans active mode plans on candle-close scheduling.
 7. It sends Telegram notifications for new signal messages.
 8. It writes state and journals.
+9. It is intended to stay alive as a daemon. A normal return from `main.py` is not the expected
+   service lifecycle.
 
 ## Telegram Flow
 
@@ -110,6 +112,8 @@ This PR preserves production overrides by seeding `runtime/remote_config.json` f
 
 Most critical production risks:
 
+- Systemd may be configured to restart clean exits, hiding duplicate-instance or wrong-entrypoint loops.
+- File-only logging can make the application appear silent in `journalctl`.
 - Mutable runtime config was tracked by git.
 - Runtime config writes could leave the working tree dirty.
 - State writes were non-atomic.
@@ -148,6 +152,9 @@ Most risky Telegram command surfaces:
 
 Risks reduced in this PR:
 
+- Application logs now go to both `logs/app.log` and stderr for journald visibility.
+- Duplicate-instance clean exits are logged before the process exits.
+- Deployment docs now recommend `Restart=on-failure` for the long-running daemon model.
 - Runtime config writes no longer target the tracked config file.
 - Runtime config and scanner state have schema version fields.
 - Runtime config and scanner state use atomic writes.
@@ -159,6 +166,7 @@ Risks reduced in this PR:
 Deferred risks:
 
 - Move Telegram polling ownership out of `main.py`.
+- Add a repo-managed systemd unit once production unit contents are confirmed.
 - Add file locking or compare-and-swap for runtime config writes.
 - Move hardcoded Telegram chat IDs into local config without changing behavior.
 - Split `telegram_commands.py` safely.
