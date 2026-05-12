@@ -1,7 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from core.symbol_resolver import SymbolResolver
 
 SUPPORTED_ASSET_CLASS = "crypto"
 UNSUPPORTED_ASSET_CLASS = "unsupported"
@@ -14,6 +16,7 @@ class AssetResolution:
     unsupported: list[str]
     exchange: str = "MEXC"
     supported_asset_class: str = SUPPORTED_ASSET_CLASS
+    resolved_aliases: dict[str, str] = field(default_factory=dict)
 
     @property
     def requested_count(self) -> int:
@@ -50,13 +53,30 @@ def resolve_asset_universe(
 ) -> AssetResolution:
     requested = normalize_asset_symbols(requested_symbols)
     exchange_set = set(normalize_asset_symbols(exchange_symbols))
-    supported = [symbol for symbol in requested if symbol in exchange_set]
-    unsupported = [symbol for symbol in requested if symbol not in exchange_set]
+    resolver = SymbolResolver()
+
+    supported: list[str] = []
+    unsupported: list[str] = []
+    resolved_aliases: dict[str, str] = {}
+    seen_supported: set[str] = set()
+
+    for symbol in requested:
+        resolution = resolver.resolve(symbol, exchange_set)
+        if resolution.supported and resolution.resolved:
+            if resolution.resolved not in seen_supported:
+                supported.append(resolution.resolved)
+                seen_supported.add(resolution.resolved)
+            if resolution.reason == "alias":
+                resolved_aliases[symbol] = resolution.resolved
+        else:
+            unsupported.append(symbol)
+
     return AssetResolution(
         requested=requested,
         supported=supported,
         unsupported=unsupported,
         exchange=exchange,
+        resolved_aliases=resolved_aliases,
     )
 
 
@@ -94,6 +114,14 @@ def build_watchlist_text(resolution: AssetResolution) -> str:
                 "",
             ]
         )
+
+    if resolution.resolved_aliases:
+        lines.append("Cozumlenen semboller:")
+        lines.extend(
+            f"{requested} -> {resolved}"
+            for requested, resolved in resolution.resolved_aliases.items()
+        )
+        lines.append("")
 
     if resolution.unsupported:
         lines.extend(
