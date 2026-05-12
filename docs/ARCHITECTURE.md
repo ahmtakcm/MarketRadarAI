@@ -153,6 +153,7 @@ Risks reduced in this PR:
 - Runtime config and scanner state use atomic writes.
 - Corrupt runtime config and scanner state get safe fallback recovery.
 - Startup logs expose active exchange, modes, watchlist count, and persistence paths.
+- Scan loop logs expose start/finish, active modes, symbol count, and duration without changing scanner behavior.
 - Passive command registry and active dispatcher command set are tested.
 
 Deferred risks:
@@ -162,6 +163,7 @@ Deferred risks:
 - Move hardcoded Telegram chat IDs into local config without changing behavior.
 - Split `telegram_commands.py` safely.
 - Introduce a MEXC adapter interface without changing scanner candle contracts.
+- Rename the existing `mexc-tarama-bot.service` unit to a MarketRadarAI service name.
 
 ## Safe Target Structure
 

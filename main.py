@@ -9,6 +9,12 @@ from pathlib import Path
 
 from config import APP_LOG_PATH, REQUESTED_SYMBOLS, STATE_FILE_PATH
 from core.exchange_client import fetch_klines, get_kline_limit
+from core.observability import (
+    build_scan_observation,
+    build_startup_metadata,
+    format_scan_observation,
+    format_startup_metadata,
+)
 from core.performance_tracker import finalize_pending_signals
 from core.scanner import build_signal_message, get_active_symbols, get_daily_commentaries
 from core.scheduler import next_sleep_seconds
@@ -243,9 +249,11 @@ def consume_force_scan_request():
         if runtime.get("force_scan_once"):
             runtime["force_scan_once"] = False
             save_config(cfg)
+            watchlist_count = len(_safe_symbols(cfg.get("watchlist", {}).get("symbols", [])))
             logging.info(
-                "Telegram /scan_now force_scan_once consumed | active_modes=%s",
+                "Telegram /scan_now force_scan_once consumed | active_modes=%s | watchlist_count=%s",
                 ",".join(get_active_modes(cfg)) or "-",
+                watchlist_count,
             )
             logging.info("Telegram /scan_now isteği alındı; tarama hemen çalıştırılacak")
             return True
@@ -328,11 +336,9 @@ def main():
     cfg = load_config()
 
     logging.info(
-        "MarketRadarAI startup | exchange=MEXC | active_modes=%s | watchlist_count=%s | state_path=%s | runtime_config_path=%s",
-        ",".join(get_active_modes(cfg)) or "-",
-        len(_safe_symbols(cfg.get("watchlist", {}).get("symbols", []))),
-        STATE_FILE_PATH,
-        get_config_path(),
+        format_startup_metadata(
+            build_startup_metadata(cfg, get_active_modes(cfg), STATE_FILE_PATH, get_config_path())
+        )
     )
 
     logging.info("Bot başladı")
@@ -349,6 +355,7 @@ def main():
 
     symbols = apply_watchlist_filter(discovered_symbols)
     logging.info("Tarama sembolleri: %s", ", ".join(symbols))
+    logging.info("MarketRadarAI startup success | scan_symbol_count=%s", len(symbols))
 
     while True:
         try:
@@ -368,6 +375,10 @@ def main():
             symbols = apply_watchlist_filter(discovered_symbols)
 
             if bot_allowed_to_scan():
+                loop_started_at = time.time()
+                loop_cfg = load_config()
+                scan_observation = build_scan_observation(get_active_modes(loop_cfg), symbols)
+                logging.info(format_scan_observation("start", scan_observation))
                 signal_message = build_signal_message(symbols, state)
 
                 if signal_message and signal_message != state.get("last_sent_message"):
@@ -392,6 +403,11 @@ def main():
 
                 finalize_pending_signals(state, fetch_klines, get_kline_limit)
                 save_state(state)
+                logging.info(
+                    "%s | duration_seconds=%.2f",
+                    format_scan_observation("finish", scan_observation),
+                    time.time() - loop_started_at,
+                )
 
             else:
                 logging.info("Tarama atlandı: bot pasif veya kill switch açık")
@@ -403,5 +419,12 @@ def main():
 
 
 if __name__ == "__main__":
-    with single_instance("alarm_bot", BASE_DIR / "storage" / "alarm_bot.lock"):
-        main()
+    try:
+        with single_instance("alarm_bot", BASE_DIR / "storage" / "alarm_bot.lock"):
+            main()
+    except KeyboardInterrupt:
+        logging.info("MarketRadarAI shutdown requested by KeyboardInterrupt")
+        raise
+    except Exception:
+        logging.exception("MarketRadarAI fatal crash")
+        raise
