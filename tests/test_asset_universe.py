@@ -39,3 +39,22 @@ def test_asset_universe_log_and_watchlist_text_are_marketradarai_visible():
     assert "BTCUSDT" in text
     assert "Desteklenmeyen semboller:" in text
     assert "AAPLUSDT, XAUUSDT" in text
+
+def test_asset_universe_resolves_known_aliases_before_marking_unsupported():
+    resolution = resolve_asset_universe(
+        ["TSLAUSDT", "SP500USDT", "UNKNOWNUSDT"],
+        ["TESLAUSDT", "SPX500USDT"],
+    )
+
+    assert resolution.requested == ["TSLAUSDT", "SP500USDT", "UNKNOWNUSDT"]
+    assert resolution.supported == ["TESLAUSDT", "SPX500USDT"]
+    assert resolution.unsupported == ["UNKNOWNUSDT"]
+    assert resolution.resolved_aliases == {
+        "TSLAUSDT": "TESLAUSDT",
+        "SP500USDT": "SPX500USDT",
+    }
+
+    text = build_watchlist_text(resolution)
+    assert "Cozumlenen semboller:" in text
+    assert "TSLAUSDT -> TESLAUSDT" in text
+    assert "SP500USDT -> SPX500USDT" in text
