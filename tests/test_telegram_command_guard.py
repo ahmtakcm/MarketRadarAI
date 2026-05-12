@@ -1,4 +1,5 @@
 import telegram_commands
+from telegram import handlers, messages
 
 
 class _FakeTelegramResponse:
@@ -55,9 +56,9 @@ def test_scan_now_sets_force_scan_flag_without_changing_modes(monkeypatch):
         saved.update(cfg)
         return cfg
 
-    monkeypatch.setattr(telegram_commands, "load_config", lambda: cfg)
-    monkeypatch.setattr(telegram_commands, "update_config", fake_update_config)
-    monkeypatch.setattr(telegram_commands, "_send_to_chat", lambda _chat_id, text: replies.append(text))
+    monkeypatch.setattr(handlers, "load_config", lambda: cfg)
+    monkeypatch.setattr(handlers, "update_config", fake_update_config)
+    monkeypatch.setattr(handlers, "send_to_chat", lambda _chat_id, text: replies.append(text))
 
     telegram_commands.handle_command_message(
         {"chat": {"id": telegram_commands.ADMIN_CHAT_ID}, "text": "/scan_now"},
@@ -74,8 +75,8 @@ def test_scan_now_sets_force_scan_flag_without_changing_modes(monkeypatch):
 def test_help_uses_marketradarai_identity(monkeypatch):
     replies = []
 
-    monkeypatch.setattr(telegram_commands, "load_config", lambda: {"runtime": {}})
-    monkeypatch.setattr(telegram_commands, "_send_to_chat", lambda _chat_id, text: replies.append(text))
+    monkeypatch.setattr(handlers, "load_config", lambda: {"runtime": {}})
+    monkeypatch.setattr(handlers, "send_to_chat", lambda _chat_id, text: replies.append(text))
 
     telegram_commands.handle_command_message(
         {"chat": {"id": telegram_commands.ADMIN_CHAT_ID}, "text": "/help"},
@@ -94,9 +95,9 @@ def test_watchlist_shows_supported_and_unsupported_symbols(monkeypatch):
     }
     replies = []
 
-    monkeypatch.setattr(telegram_commands, "load_config", lambda: cfg)
-    monkeypatch.setattr(telegram_commands, "get_valid_futures_symbols", lambda: ["BTCUSDT", "ETHUSDT"])
-    monkeypatch.setattr(telegram_commands, "_send_to_chat", lambda _chat_id, text: replies.append(text))
+    monkeypatch.setattr(handlers, "load_config", lambda: cfg)
+    monkeypatch.setattr(messages, "get_valid_futures_symbols", lambda: ["BTCUSDT", "ETHUSDT"])
+    monkeypatch.setattr(handlers, "send_to_chat", lambda _chat_id, text: replies.append(text))
 
     telegram_commands.handle_command_message(
         {"chat": {"id": telegram_commands.ADMIN_CHAT_ID}, "text": "/watchlist"},
@@ -120,10 +121,10 @@ def test_add_symbol_accepts_resolved_alias_symbol(monkeypatch):
         saved.update(cfg)
         return cfg
 
-    monkeypatch.setattr(telegram_commands, "load_config", lambda: cfg)
-    monkeypatch.setattr(telegram_commands, "update_config", fake_update_config)
-    monkeypatch.setattr(telegram_commands, "get_valid_futures_symbols", lambda: ["TESLAUSDT"])
-    monkeypatch.setattr(telegram_commands, "_send_to_chat", lambda _chat_id, text: replies.append(text))
+    monkeypatch.setattr(handlers, "load_config", lambda: cfg)
+    monkeypatch.setattr(handlers, "update_config", fake_update_config)
+    monkeypatch.setattr(handlers, "get_valid_futures_symbols", lambda: ["TESLAUSDT"])
+    monkeypatch.setattr(handlers, "send_to_chat", lambda _chat_id, text: replies.append(text))
 
     telegram_commands.handle_command_message(
         {"chat": {"id": telegram_commands.ADMIN_CHAT_ID}, "text": "/add_symbol TSLAUSDT"},
@@ -146,10 +147,10 @@ def test_add_symbol_rejects_unknown_symbol_after_resolution(monkeypatch):
         saved.update(cfg)
         return cfg
 
-    monkeypatch.setattr(telegram_commands, "load_config", lambda: cfg)
-    monkeypatch.setattr(telegram_commands, "update_config", fake_update_config)
-    monkeypatch.setattr(telegram_commands, "get_valid_futures_symbols", lambda: ["BTCUSDT"])
-    monkeypatch.setattr(telegram_commands, "_send_to_chat", lambda _chat_id, text: replies.append(text))
+    monkeypatch.setattr(handlers, "load_config", lambda: cfg)
+    monkeypatch.setattr(handlers, "update_config", fake_update_config)
+    monkeypatch.setattr(handlers, "get_valid_futures_symbols", lambda: ["BTCUSDT"])
+    monkeypatch.setattr(handlers, "send_to_chat", lambda _chat_id, text: replies.append(text))
 
     telegram_commands.handle_command_message(
         {"chat": {"id": telegram_commands.ADMIN_CHAT_ID}, "text": "/add_symbol UNKNOWNUSDT"},
@@ -168,13 +169,13 @@ def test_watchlist_shows_resolved_alias_symbols(monkeypatch):
     }
     replies = []
 
-    monkeypatch.setattr(telegram_commands, "load_config", lambda: cfg)
+    monkeypatch.setattr(handlers, "load_config", lambda: cfg)
     monkeypatch.setattr(
-        telegram_commands,
+        messages,
         "get_valid_futures_symbols",
         lambda: ["TESLAUSDT", "SPX500USDT"],
     )
-    monkeypatch.setattr(telegram_commands, "_send_to_chat", lambda _chat_id, text: replies.append(text))
+    monkeypatch.setattr(handlers, "send_to_chat", lambda _chat_id, text: replies.append(text))
 
     telegram_commands.handle_command_message(
         {"chat": {"id": telegram_commands.ADMIN_CHAT_ID}, "text": "/watchlist"},

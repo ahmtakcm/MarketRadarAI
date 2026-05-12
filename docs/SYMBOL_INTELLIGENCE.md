@@ -26,5 +26,5 @@ User Input -> SymbolResolver -> AssetUniverse -> SymbolCatalog -> MarketDataServ
 ## Current Gaps
 
 - `MarketDataService` is a thin boundary over `core.exchange_client`; full multi-source routing is still deferred.
-- `telegram_commands.py` still contains active dispatcher logic in one file.
+- Telegram command runtime is split under `telegram/`; `telegram_commands.py` remains a compatibility facade.
 - Runtime config writes still need file locking or compare-and-swap.

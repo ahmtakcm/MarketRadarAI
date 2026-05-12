@@ -8,6 +8,7 @@ product identity is MarketRadarAI.
 
 - Service name: `mexc-tarama-bot.service`
 - Recommended description: `MarketRadarAI scanner service`
+- Repo-managed example unit: `deploy/systemd/marketradarai.service.example`
 - WorkingDirectory: production checkout path, usually the server `mexc-tarama-bot` directory
 - ExecStart: project virtualenv or Python interpreter running `main.py`
 - Restart policy: prefer `Restart=on-failure`. Avoid `Restart=always` unless intentionally running one-shot jobs.
@@ -72,12 +73,30 @@ Do not rename the systemd unit in this PR.
 
 Future low-risk migration:
 
-1. Add a new `marketradarai.service` unit with the same `WorkingDirectory`, `ExecStart`, environment, and restart policy.
-2. Stop but do not disable `mexc-tarama-bot.service`.
-3. Start `marketradarai.service`.
-4. Validate logs and Telegram behavior.
-5. Disable the old service only after validation.
-6. Keep rollback instructions to re-enable `mexc-tarama-bot.service`.
+1. Confirm `main` is deployed and tests pass on the current `mexc-tarama-bot.service`.
+2. Copy `deploy/systemd/marketradarai.service.example` to `/etc/systemd/system/marketradarai.service`.
+3. Update `WorkingDirectory` and `ExecStart` only if the server path changed.
+4. Run `sudo systemctl daemon-reload`.
+5. Stop but do not disable `mexc-tarama-bot.service`.
+6. Start `marketradarai.service`.
+7. Validate journald logs, Telegram `/help`, `/watchlist`, and `/scan_now`.
+8. Disable the old service only after validation.
+9. Keep rollback instructions to re-enable `mexc-tarama-bot.service`.
+
+## Repo And Path Rename Plan
+
+Repository and server path rename are not part of this PR.
+
+Future low-risk migration:
+
+1. Rename GitHub repository after all active PRs are merged.
+2. Update local/server git remotes with the new GitHub URL.
+3. Create or move the server directory to the target MarketRadarAI path.
+4. Keep the old `mexc-tarama-bot` directory until the new service is validated.
+5. Update systemd `WorkingDirectory` and `ExecStart`.
+6. Run `systemctl daemon-reload`.
+7. Start the new service and confirm journal continuity.
+8. Roll back by stopping the new service and starting `mexc-tarama-bot.service` from the old path.
 
 ## Deferred
 

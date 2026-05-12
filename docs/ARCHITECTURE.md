@@ -10,7 +10,8 @@ This document describes the current architecture and the safe migration directio
 - `core/market_data_service.py`: market-data boundary over the current MEXC client.
 - `core/`: symbol resolution, asset universe resolution, exchange access, scanner, scheduler, indicators, signal engine, performance tracking, observability, and state persistence.
 - `strategies/`: individual signal strategies used by `core.signal_engine`.
-- `telegram_commands.py`: active Telegram command dispatcher and Telegram polling implementation.
+- `telegram/`: active Telegram runtime modules for dispatcher, handlers, guards, menu sync, message formatting, and offsets.
+- `telegram_commands.py`: backward-compatible facade for the active Telegram runtime.
 - `commands/`: passive command registry used by tooling and tests. It must not replace the active dispatcher without a separate PR.
 - `notifiers/` and `services/`: Telegram send wrappers.
 - `docs/`: runtime, architecture, and release notes.
@@ -36,7 +37,12 @@ This document describes the current architecture and the safe migration directio
 
 ## Telegram Flow
 
-- `telegram_commands.py` is the active dispatcher.
+- `telegram_commands.py` remains the active import facade.
+- `telegram/dispatcher.py` owns polling.
+- `telegram/handlers.py` owns command execution.
+- `telegram/guards.py` owns authorization and command-set constants.
+- `telegram/menu.py` owns command menu sync.
+- `telegram/messages.py` owns user-visible command text.
 - `core.scanner_orchestrator.ScannerRuntime` owns one-time command menu sync.
 - Admin-private commands are the current production command set.
 - Group commands are currently disabled through `GROUP_SAFE_COMMANDS = set()`.
@@ -186,7 +192,7 @@ Deferred risks:
 - Add a repo-managed systemd unit once production unit contents are confirmed.
 - Add file locking to scanner state writes if future architecture introduces multiple state writers.
 - Move hardcoded Telegram chat IDs into local config without changing behavior.
-- Split `telegram_commands.py` safely.
+- Split larger Telegram command families further if command volume grows.
 - Introduce a MEXC adapter interface without changing scanner candle contracts.
 - Rename the existing `mexc-tarama-bot.service` unit to a MarketRadarAI service name.
 

@@ -24,6 +24,8 @@ User Input -> SymbolResolver -> AssetUniverse -> SymbolCatalog -> MarketDataServ
 
 `ScannerRuntime` receives the supported symbols from `AssetUniverse` and injects `MarketDataService` into scanner and performance tracking calls.
 
+Telegram watchlist commands use the same symbol resolution path for visibility, but Telegram runtime does not interpret market data. It only reports supported/unsupported results and updates runtime config through locked config helpers.
+
 ## Future Multi-Source Use
 
 Binance, TradingView, or other sources can implement the same service protocol. Symbol interpretation must still remain in `SymbolResolver`, and supported/unsupported routing must still remain in `AssetUniverse`.

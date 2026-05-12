@@ -12,7 +12,8 @@
 - `core.market_data_service`: validated market-data boundary over the current MEXC client.
 - `core.scanner`: signal message construction from supported symbols.
 - `core.scheduler`: next scan sleep interval.
-- `telegram_commands.py`: active Telegram dispatcher and polling implementation.
+- `telegram_commands.py`: backward-compatible Telegram runtime facade.
+- `telegram/`: dispatcher, handlers, guards, menu sync, messages, and offset persistence.
 - `remote_config.py`: mutable runtime config.
 - `core.state_store`: runtime scanner state.
 
@@ -100,7 +101,7 @@ The production unit should use `Restart=on-failure`, not `Restart=always`, becau
 ## Deferred Work
 
 - Move Telegram polling ownership out of the scanner process if a dedicated Telegram service is reintroduced.
-- Split `telegram_commands.py` into smaller runtime modules.
+- Split larger Telegram command families further if the command set grows.
 - Add an explicit runtime stop token for graceful thread shutdown and bounded integration tests.
 - Introduce a real exchange adapter interface without changing scanner candle contracts.
 - Add file locking to scanner state writes if multiple state writers are introduced.
