@@ -128,3 +128,30 @@ def test_add_symbol_rejects_unknown_symbol_after_resolution(monkeypatch):
     assert saved == {}
     assert replies
     assert "UNKNOWNUSDT" in replies[0]
+
+
+def test_watchlist_shows_resolved_alias_symbols(monkeypatch):
+    cfg = {
+        "watchlist": {"symbols": ["TSLAUSDT", "SP500USDT", "UNKNOWNUSDT"]},
+        "runtime": {},
+    }
+    replies = []
+
+    monkeypatch.setattr(telegram_commands, "load_config", lambda: cfg)
+    monkeypatch.setattr(
+        telegram_commands,
+        "get_valid_futures_symbols",
+        lambda: ["TESLAUSDT", "SPX500USDT"],
+    )
+    monkeypatch.setattr(telegram_commands, "_send_to_chat", lambda _chat_id, text: replies.append(text))
+
+    telegram_commands.handle_command_message(
+        {"chat": {"id": telegram_commands.ADMIN_CHAT_ID}, "text": "/watchlist"},
+        lambda _text: None,
+    )
+
+    assert replies
+    assert "Cozumlenen semboller:" in replies[0]
+    assert "TSLAUSDT -> TESLAUSDT" in replies[0]
+    assert "SP500USDT -> SPX500USDT" in replies[0]
+    assert "UNKNOWNUSDT" in replies[0]
