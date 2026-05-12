@@ -16,7 +16,7 @@ from core.asset_universe import (
 )
 from core.market_data_service import DEFAULT_MARKET_DATA_SERVICE, MarketDataService
 from core.observability import build_scan_observation, format_scan_observation
-from remote_config import get_active_modes, load_config, save_config
+from remote_config import get_active_modes, load_config, update_config
 from signal_journal import append_signal_message, set_last_signal
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -254,16 +254,25 @@ class ScannerRuntime:
 
     def consume_force_scan_request(self) -> bool:
         try:
-            cfg = load_config()
-            runtime = cfg.setdefault("runtime", {})
-            if runtime.get("force_scan_once"):
-                runtime["force_scan_once"] = False
-                save_config(cfg)
-                watchlist_count = len(self._safe_symbols(cfg.get("watchlist", {}).get("symbols", [])))
+            consumed = {"value": False, "active_modes": "-", "watchlist_count": 0}
+
+            def consume(current):
+                runtime_cfg = current.setdefault("runtime", {})
+                if not runtime_cfg.get("force_scan_once"):
+                    return
+                runtime_cfg["force_scan_once"] = False
+                consumed["value"] = True
+                consumed["active_modes"] = ",".join(get_active_modes(current)) or "-"
+                consumed["watchlist_count"] = len(
+                    self._safe_symbols(current.get("watchlist", {}).get("symbols", []))
+                )
+
+            update_config(consume)
+            if consumed["value"]:
                 logging.info(
                     "Telegram /scan_now force_scan_once consumed | active_modes=%s | watchlist_count=%s",
-                    ",".join(get_active_modes(cfg)) or "-",
-                    watchlist_count,
+                    consumed["active_modes"],
+                    consumed["watchlist_count"],
                 )
                 logging.info("Telegram /scan_now isteği alındı; tarama hemen çalıştırılacak")
                 return True

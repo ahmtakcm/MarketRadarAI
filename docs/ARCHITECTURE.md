@@ -69,6 +69,8 @@ This document describes the current architecture and the safe migration directio
 - New runtime writes go to `runtime/remote_config.json` by default.
 - `MARKETRADAR_RUNTIME_CONFIG` can override the runtime config path.
 - If `runtime/remote_config.json` does not exist but legacy `remote_config.json` exists, the legacy file is copied into runtime config first. This preserves production overrides such as `modes.scalp = true`.
+- Runtime config writes are atomic and protected by `runtime/remote_config.lock`.
+- Read-modify-write paths must use `remote_config.update_config(mutator)` so Telegram commands and scanner runtime flag consumption do not overwrite each other.
 
 ## Exchange Flow
 
@@ -135,6 +137,7 @@ Most critical production risks:
 Most risky runtime files:
 
 - `runtime/remote_config.json`
+- `runtime/remote_config.lock`
 - `data/state.json`
 - `telegram_offset.txt`
 - `storage/alarm_bot.lock`
@@ -143,6 +146,7 @@ Most risky runtime files:
 Most risky race conditions:
 
 - Telegram commands and scanner both load/save runtime config.
+- Runtime config updates are serialized by a lock, but callers must keep using `update_config` for read-modify-write changes.
 - Scanner writes state while a process exits unexpectedly.
 - Multiple in-process Telegram polling paths rely on a process-local lock; command menu sync is no longer part of each polling call.
 
@@ -180,7 +184,7 @@ Deferred risks:
 
 - Move Telegram polling ownership out of the scanner process if a dedicated Telegram service is reintroduced.
 - Add a repo-managed systemd unit once production unit contents are confirmed.
-- Add file locking or compare-and-swap for runtime config writes.
+- Add file locking to scanner state writes if future architecture introduces multiple state writers.
 - Move hardcoded Telegram chat IDs into local config without changing behavior.
 - Split `telegram_commands.py` safely.
 - Introduce a MEXC adapter interface without changing scanner candle contracts.

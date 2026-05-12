@@ -50,8 +50,13 @@ def test_scan_now_sets_force_scan_flag_without_changing_modes(monkeypatch):
     saved = {}
     replies = []
 
+    def fake_update_config(mutator):
+        mutator(cfg)
+        saved.update(cfg)
+        return cfg
+
     monkeypatch.setattr(telegram_commands, "load_config", lambda: cfg)
-    monkeypatch.setattr(telegram_commands, "save_config", lambda value: saved.update(value))
+    monkeypatch.setattr(telegram_commands, "update_config", fake_update_config)
     monkeypatch.setattr(telegram_commands, "_send_to_chat", lambda _chat_id, text: replies.append(text))
 
     telegram_commands.handle_command_message(
@@ -110,8 +115,13 @@ def test_add_symbol_accepts_resolved_alias_symbol(monkeypatch):
     saved = {}
     replies = []
 
+    def fake_update_config(mutator):
+        mutator(cfg)
+        saved.update(cfg)
+        return cfg
+
     monkeypatch.setattr(telegram_commands, "load_config", lambda: cfg)
-    monkeypatch.setattr(telegram_commands, "save_config", lambda value: saved.update(value))
+    monkeypatch.setattr(telegram_commands, "update_config", fake_update_config)
     monkeypatch.setattr(telegram_commands, "get_valid_futures_symbols", lambda: ["TESLAUSDT"])
     monkeypatch.setattr(telegram_commands, "_send_to_chat", lambda _chat_id, text: replies.append(text))
 
@@ -131,8 +141,13 @@ def test_add_symbol_rejects_unknown_symbol_after_resolution(monkeypatch):
     saved = {}
     replies = []
 
+    def fake_update_config(mutator):
+        mutator(cfg)
+        saved.update(cfg)
+        return cfg
+
     monkeypatch.setattr(telegram_commands, "load_config", lambda: cfg)
-    monkeypatch.setattr(telegram_commands, "save_config", lambda value: saved.update(value))
+    monkeypatch.setattr(telegram_commands, "update_config", fake_update_config)
     monkeypatch.setattr(telegram_commands, "get_valid_futures_symbols", lambda: ["BTCUSDT"])
     monkeypatch.setattr(telegram_commands, "_send_to_chat", lambda _chat_id, text: replies.append(text))
 

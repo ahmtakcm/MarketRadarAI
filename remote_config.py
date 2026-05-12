@@ -2,13 +2,19 @@
 
 import json
 import os
+import threading
+import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 
 BASE_DIR = Path(__file__).resolve().parent
 LEGACY_CONFIG_PATH = BASE_DIR / "remote_config.json"
 CONFIG_PATH = Path(os.getenv("MARKETRADAR_RUNTIME_CONFIG", BASE_DIR / "runtime" / "remote_config.json"))
 SCHEMA_VERSION = 1
+LOCK_TIMEOUT_SECONDS = 10.0
+LOCK_POLL_SECONDS = 0.05
+_PROCESS_LOCK = threading.RLock()
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "schema_version": SCHEMA_VERSION,
@@ -68,6 +74,10 @@ def get_config_path() -> Path:
     return CONFIG_PATH
 
 
+def get_config_lock_path() -> Path:
+    return CONFIG_PATH.with_suffix(".lock")
+
+
 def migrate_config(config: Dict[str, Any]) -> Dict[str, Any]:
     migrated = merge_defaults(DEFAULT_CONFIG, config)
     migrated["schema_version"] = SCHEMA_VERSION
@@ -106,18 +116,56 @@ def _replace_file(tmp: Path, target: Path) -> None:
                 pass
 
 
-def load_config() -> Dict[str, Any]:
+@contextmanager
+def _file_lock(path: Path, timeout_seconds: float = LOCK_TIMEOUT_SECONDS):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with _PROCESS_LOCK:
+        with path.open("a+b") as lock_file:
+            deadline = time.monotonic() + timeout_seconds
+            acquired = False
+            while not acquired:
+                try:
+                    if os.name == "nt":
+                        import msvcrt
+
+                        lock_file.seek(0)
+                        msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+                    else:
+                        import fcntl
+
+                        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    acquired = True
+                except OSError:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError(f"Runtime config lock timeout: {path}")
+                    time.sleep(LOCK_POLL_SECONDS)
+
+            try:
+                yield
+            finally:
+                if os.name == "nt":
+                    import msvcrt
+
+                    lock_file.seek(0)
+                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _load_config_unlocked() -> Dict[str, Any]:
     if not CONFIG_PATH.exists():
         if LEGACY_CONFIG_PATH.exists():
             try:
                 legacy = migrate_config(_read_json(LEGACY_CONFIG_PATH))
-                save_config(legacy)
+                _save_config_unlocked(legacy)
                 return legacy
             except Exception:
                 pass
 
         default = migrate_config({})
-        save_config(default)
+        _save_config_unlocked(default)
         return default
 
     try:
@@ -128,16 +176,21 @@ def load_config() -> Dict[str, Any]:
         except Exception:
             pass
         default = migrate_config({})
-        save_config(default)
+        _save_config_unlocked(default)
         return default
 
     migrated = migrate_config(data)
     if migrated != data:
-        save_config(migrated)
+        _save_config_unlocked(migrated)
     return migrated
 
 
-def save_config(config: Dict[str, Any]) -> None:
+def load_config() -> Dict[str, Any]:
+    with _file_lock(get_config_lock_path()):
+        return _load_config_unlocked()
+
+
+def _save_config_unlocked(config: Dict[str, Any]) -> Dict[str, Any]:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     payload = migrate_config(config)
     tmp = CONFIG_PATH.with_suffix(".tmp")
@@ -147,6 +200,19 @@ def save_config(config: Dict[str, Any]) -> None:
         f.flush()
         os.fsync(f.fileno())
     _replace_file(tmp, CONFIG_PATH)
+    return payload
+
+
+def save_config(config: Dict[str, Any]) -> None:
+    with _file_lock(get_config_lock_path()):
+        _save_config_unlocked(config)
+
+
+def update_config(mutator: Callable[[Dict[str, Any]], Any]) -> Dict[str, Any]:
+    with _file_lock(get_config_lock_path()):
+        cfg = _load_config_unlocked()
+        mutator(cfg)
+        return _save_config_unlocked(cfg)
 
 
 def get_active_modes(config: Dict[str, Any]) -> list[str]:
