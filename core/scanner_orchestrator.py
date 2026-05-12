@@ -9,7 +9,6 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from config import REQUESTED_SYMBOLS
 from core.asset_universe import (
     format_asset_resolution_log,
     normalize_asset_symbols,
@@ -17,10 +16,6 @@ from core.asset_universe import (
 )
 from core.exchange_client import fetch_klines, get_kline_limit
 from core.observability import build_scan_observation, format_scan_observation
-from core.performance_tracker import finalize_pending_signals
-from core.scanner import build_signal_message, get_active_symbols, get_daily_commentaries
-from core.scheduler import next_sleep_seconds
-from core.state_store import load_state, save_state
 from remote_config import get_active_modes, load_config, save_config
 from signal_journal import append_signal_message, set_last_signal
 
@@ -48,6 +43,57 @@ def bot_allowed_to_scan() -> bool:
 
 def is_quiet_mode() -> bool:
     return False
+
+
+def get_requested_symbols() -> list[str]:
+    try:
+        from config import REQUESTED_SYMBOLS
+
+        return normalize_asset_symbols(REQUESTED_SYMBOLS)
+    except Exception:
+        return []
+
+
+def get_active_symbols() -> list[str]:
+    from core.scanner import get_active_symbols as _get_active_symbols
+
+    return _get_active_symbols()
+
+
+def build_signal_message(symbols, state):
+    from core.scanner import build_signal_message as _build_signal_message
+
+    return _build_signal_message(symbols, state)
+
+
+def get_daily_commentaries(symbols, state):
+    from core.scanner import get_daily_commentaries as _get_daily_commentaries
+
+    return _get_daily_commentaries(symbols, state)
+
+
+def finalize_pending_signals(state, fetcher, limit_getter) -> None:
+    from core.performance_tracker import finalize_pending_signals as _finalize_pending_signals
+
+    _finalize_pending_signals(state, fetcher, limit_getter)
+
+
+def next_sleep_seconds() -> int:
+    from core.scheduler import next_sleep_seconds as _next_sleep_seconds
+
+    return _next_sleep_seconds()
+
+
+def load_state():
+    from core.state_store import load_state as _load_state
+
+    return _load_state()
+
+
+def save_state(state) -> None:
+    from core.state_store import save_state as _save_state
+
+    _save_state(state)
 
 
 class ScannerRuntime:
@@ -92,7 +138,7 @@ class ScannerRuntime:
             return [], None
 
     def _default_fallback_symbols(self) -> list[str]:
-        return self._safe_symbols(REQUESTED_SYMBOLS)
+        return get_requested_symbols()
 
     def _fetch_live_symbols_once(self) -> list[str]:
         symbols = self._safe_symbols(get_active_symbols())

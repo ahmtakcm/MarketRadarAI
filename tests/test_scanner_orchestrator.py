@@ -1,3 +1,4 @@
+import builtins
 import sys
 from pathlib import Path
 
@@ -12,6 +13,20 @@ def _runtime():
         send_telegram=lambda _text: None,
         poll_telegram_commands=lambda _send: None,
     )
+
+
+def test_orchestrator_requested_symbols_falls_back_without_config(monkeypatch):
+    original_import = builtins.__import__
+    sys.modules.pop("config", None)
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "config":
+            raise FileNotFoundError("settings.json missing")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+
+    assert scanner_orchestrator.get_requested_symbols() == []
 
 
 def test_orchestrator_watchlist_filter_keeps_supported_and_logs_unsupported(monkeypatch, caplog):
