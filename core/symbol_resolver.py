@@ -27,7 +27,9 @@ DEFAULT_SYMBOL_ALIASES: dict[str, str | dict[str, object]] = {
     "BRENTUSDT": "UKOILUSDT",
     "SP500USDT": "SPX500USDT",
     "QQQUSDT": "QQQSTOCKUSDT",
+    "TSLA": "TESLAUSDT",
     "TSLAUSDT": "TESLAUSDT",
+    "NVDA": "NVIDIAUSDT",
     "NVDAUSDT": "NVIDIAUSDT",
     "HK50": "HK50USDT",
 }
@@ -117,3 +119,5 @@ class SymbolResolver:
             if normalize_symbol(symbol)
         ]
         return preferred, alternatives
+
+
