@@ -1,5 +1,5 @@
 import telegram_commands
-from telegram import handlers, messages
+from telegram import command_controls, command_watchlist, handlers, messages
 
 
 class _FakeTelegramResponse:
@@ -57,7 +57,7 @@ def test_scan_now_sets_force_scan_flag_without_changing_modes(monkeypatch):
         return cfg
 
     monkeypatch.setattr(handlers, "load_config", lambda: cfg)
-    monkeypatch.setattr(handlers, "update_config", fake_update_config)
+    monkeypatch.setattr(command_controls, "update_config", fake_update_config)
     monkeypatch.setattr(handlers, "send_to_chat", lambda _chat_id, text: replies.append(text))
 
     telegram_commands.handle_command_message(
@@ -157,8 +157,8 @@ def test_add_symbol_accepts_resolved_alias_symbol(monkeypatch):
         return cfg
 
     monkeypatch.setattr(handlers, "load_config", lambda: cfg)
-    monkeypatch.setattr(handlers, "update_config", fake_update_config)
-    monkeypatch.setattr(handlers, "get_valid_futures_symbols", lambda: ["TESLAUSDT"])
+    monkeypatch.setattr(command_watchlist, "update_config", fake_update_config)
+    monkeypatch.setattr(command_watchlist, "get_valid_futures_symbols", lambda: ["TESLAUSDT"])
     monkeypatch.setattr(handlers, "send_to_chat", lambda _chat_id, text: replies.append(text))
 
     telegram_commands.handle_command_message(
@@ -183,8 +183,8 @@ def test_add_symbol_rejects_unknown_symbol_after_resolution(monkeypatch):
         return cfg
 
     monkeypatch.setattr(handlers, "load_config", lambda: cfg)
-    monkeypatch.setattr(handlers, "update_config", fake_update_config)
-    monkeypatch.setattr(handlers, "get_valid_futures_symbols", lambda: ["BTCUSDT"])
+    monkeypatch.setattr(command_watchlist, "update_config", fake_update_config)
+    monkeypatch.setattr(command_watchlist, "get_valid_futures_symbols", lambda: ["BTCUSDT"])
     monkeypatch.setattr(handlers, "send_to_chat", lambda _chat_id, text: replies.append(text))
 
     telegram_commands.handle_command_message(

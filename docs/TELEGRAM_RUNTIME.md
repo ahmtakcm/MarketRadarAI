@@ -7,7 +7,10 @@ Service or repository renames do not change Telegram command names or authorizat
 ## Module Ownership
 
 - `telegram/dispatcher.py`: `getUpdates` polling, duplicate-poll guard, update dispatch.
-- `telegram/handlers.py`: active command handler implementation.
+- `telegram/handlers.py`: active command routing and guard integration.
+- `telegram/command_controls.py`: scan/restart/mode/filter command family.
+- `telegram/command_watchlist.py`: watchlist add/remove/display command family.
+- `telegram/command_reports.py`: help/status/health/log/report command family.
 - `telegram/guards.py`: admin/private/group command authorization and command set constants.
 - `telegram/menu.py`: BotFather command menu sync.
 - `telegram/messages.py`: user-visible help/status/watchlist/log text builders.
@@ -69,6 +72,5 @@ This prevents normal startup from repeatedly calling BotFather menu updates.
 
 ## Deferred
 
-- Split handlers by command family if the command set grows.
 - Move Telegram polling to a separate process only if a dedicated Telegram service is reintroduced.
 - Move Telegram chat IDs fully into local config if env-based overrides are not enough.
