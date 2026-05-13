@@ -5,22 +5,30 @@ from pathlib import Path
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 
-ADMIN_CHAT_ID = "1218508355"
-GROUP_CHAT_ID = "-1003949299046"
+DEFAULT_ADMIN_CHAT_ID = "1218508355"
+DEFAULT_GROUP_CHAT_ID = "-1003949299046"
 
-# Backward compatibility for older single-chat deployments.
-ALLOWED_CHAT_ID = os.getenv("TELEGRAM_ALLOWED_CHAT_ID", "").strip()
 
-if not ALLOWED_CHAT_ID:
-    try:
-        from config import CHAT_ID as CONFIG_CHAT_ID
+def resolve_chat_ids() -> tuple[str, str, str]:
+    admin_chat_id = os.getenv("TELEGRAM_ADMIN_CHAT_ID", DEFAULT_ADMIN_CHAT_ID).strip() or DEFAULT_ADMIN_CHAT_ID
+    group_chat_id = os.getenv("TELEGRAM_GROUP_CHAT_ID", DEFAULT_GROUP_CHAT_ID).strip() or DEFAULT_GROUP_CHAT_ID
+    allowed_chat_id = os.getenv("TELEGRAM_ALLOWED_CHAT_ID", "").strip()
 
-        ALLOWED_CHAT_ID = str(CONFIG_CHAT_ID).strip()
-    except Exception:
-        pass
+    if not allowed_chat_id:
+        try:
+            from config import CHAT_ID as CONFIG_CHAT_ID
 
-if not GROUP_CHAT_ID and ALLOWED_CHAT_ID:
-    GROUP_CHAT_ID = ALLOWED_CHAT_ID
+            allowed_chat_id = str(CONFIG_CHAT_ID).strip()
+        except Exception:
+            pass
+
+    if not group_chat_id and allowed_chat_id:
+        group_chat_id = allowed_chat_id
+
+    return admin_chat_id, group_chat_id, allowed_chat_id
+
+
+ADMIN_CHAT_ID, GROUP_CHAT_ID, ALLOWED_CHAT_ID = resolve_chat_ids()
 
 try:
     from notifiers import telegram_notifier as _telegram_sender

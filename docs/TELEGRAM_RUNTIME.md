@@ -53,6 +53,13 @@ This preserves runtime config locking for:
 - `/add_symbol`
 - `/remove_symbol`
 
+## Environment
+
+- `TELEGRAM_BOT_TOKEN`: Telegram bot token.
+- `TELEGRAM_ADMIN_CHAT_ID`: admin private chat override. Default remains the legacy production admin chat.
+- `TELEGRAM_GROUP_CHAT_ID`: group chat override. Group commands remain disabled unless explicitly changed in code.
+- `TELEGRAM_ALLOWED_CHAT_ID`: legacy single-chat compatibility fallback.
+
 ## Polling And Menu Sync
 
 `ScannerRuntime` remains the owner of one-time command menu sync. Polling does not sync commands.
@@ -64,4 +71,4 @@ This prevents normal startup from repeatedly calling BotFather menu updates.
 
 - Split handlers by command family if the command set grows.
 - Move Telegram polling to a separate process only if a dedicated Telegram service is reintroduced.
-- Move hardcoded chat IDs into local config with an explicit compatibility migration.
+- Move Telegram chat IDs fully into local config if env-based overrides are not enough.
