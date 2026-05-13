@@ -9,7 +9,7 @@ WorkingDirectory=/home/ahmtakcm/MarketRadarAI
 ExecStart=/home/ahmtakcm/MarketRadarAI/venv/bin/python -u /home/ahmtakcm/MarketRadarAI/main.py
 Restart=on-failure
 RestartSec=5
-Environment=MEXC_LOG_LEVEL=INFO
+Environment=MARKETRADAR_LOG_LEVEL=INFO
 StandardOutput=journal
 StandardError=journal
 
