@@ -1,28 +1,27 @@
 import time
 
 from config import PERFORMANCE_LOG_PATH, SIGNAL_HORIZONS_BARS
+from core.signal_lifecycle import build_pending_signal_record, build_signal_dedupe_key
 from core.state_store import append_jsonl
 
 
 def register_signal(state, symbol, timeframe, strategy_name, signal, reason, levels):
-    signal_id = f"{symbol}_{timeframe}_{strategy_name}_{levels['close_time']}_{signal}"
+    signal_id = build_signal_dedupe_key(symbol, timeframe, strategy_name, levels["close_time"], signal)
 
     for item in state.get("pending_signals", []):
         if item["id"] == signal_id:
             return
 
-    row = {
-        "timestamp": int(time.time()),
-        "id": signal_id,
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "strategy": strategy_name,
-        "signal": signal,
-        "reason": reason,
-        "entry_price": levels["close"],
-        "close_time": levels["close_time"],
-        "target_horizons": SIGNAL_HORIZONS_BARS
-    }
+    row = build_pending_signal_record(
+        symbol=symbol,
+        timeframe=timeframe,
+        strategy=strategy_name,
+        signal=signal,
+        reason=reason,
+        levels=levels,
+        target_horizons=SIGNAL_HORIZONS_BARS,
+        timestamp=int(time.time()),
+    )
 
     state.setdefault("pending_signals", []).append(row)
 
