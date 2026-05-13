@@ -16,7 +16,9 @@ identity is MarketRadarAI. The rename must be applied manually in production aft
 - RestartSec: keep a small delay, for example `RestartSec=5`
 - StandardOutput: `journal`
 - StandardError: `journal`
-- Environment: `MEXC_LOG_LEVEL=INFO` unless debugging
+- Environment: `MARKETRADAR_LOG_LEVEL=INFO` unless debugging
+- Legacy environment: `MEXC_LOG_LEVEL=INFO` remains supported as a fallback
+- Telegram environment: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_CHAT_ID`, `TELEGRAM_GROUP_CHAT_ID`
 - Environment: `MARKETRADAR_RUNTIME_CONFIG=/absolute/path/to/runtime/remote_config.json` when overriding the default
 - Runtime config: `runtime/remote_config.json`
 - App log: `logs/app.log`; the same application log stream is also written to stderr for journald capture.

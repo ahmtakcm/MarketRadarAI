@@ -1,6 +1,5 @@
 import datetime as dt
 import logging
-import os
 from pathlib import Path
 
 from config import APP_LOG_PATH, STATE_FILE_PATH
@@ -8,12 +7,13 @@ from core.observability import build_startup_metadata, format_startup_metadata
 from core.scanner_orchestrator import ScannerRuntime
 from notifiers.telegram_notifier import send_telegram
 from remote_config import get_active_modes, get_config_path, load_config
+from runtime_env import resolve_log_level
 from single_instance import single_instance
 from telegram_commands import poll_telegram_commands, sync_telegram_commands
 
 BASE_DIR = Path(__file__).resolve().parent
 
-LOG_LEVEL = os.getenv("MEXC_LOG_LEVEL", "INFO").upper()
+LOG_LEVEL = resolve_log_level()
 LOG_LEVEL_VALUE = getattr(logging, LOG_LEVEL, logging.INFO)
 LOG_FORMAT = "%(asctime)s | %(levelname)s | %(message)s"
 
