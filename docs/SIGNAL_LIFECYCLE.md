@@ -29,6 +29,16 @@ The current contract is:
 
 Scanner and Telegram boundaries must stay separate: scanner creates signal content, while Telegram runtime only delivers command replies and outbound notifications passed by the scanner runtime.
 
+## Code Contract
+
+`core.signal_lifecycle` owns the stable lifecycle helper contract:
+
+- `SignalLifecycleCandidate`: typed candidate shape used before pending-state serialization.
+- `build_signal_dedupe_key`: stable pending-signal dedupe key.
+- `build_pending_signal_record`: state-compatible pending signal record builder.
+
+`core.performance_tracker.register_signal` uses these helpers without changing the existing `pending_signals` state shape.
+
 ## Current Persistence
 
 - Last delivered message: `data/state.json`
@@ -39,7 +49,5 @@ Scanner and Telegram boundaries must stay separate: scanner creates signal conte
 
 ## Deferred Contract Work
 
-- Add an explicit candidate object before Telegram rendering.
-- Add a stable dedupe key such as `symbol + mode + timeframe + close_time + strategy + direction`.
 - Split delivery audit from strategy scoring.
 - Add restart recovery tests for pending signal performance tracking.
