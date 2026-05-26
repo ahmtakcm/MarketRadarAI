@@ -55,6 +55,33 @@ def _build_daily_commentary(symbol, levels):
     return build_daily_commentary(symbol, levels)
 
 
+def _phase_alert_allowed(state, key, current_close, cooldown_candles=4):
+    alerts = state.setdefault("last_phase_alerts", {})
+    record = alerts.get(key)
+    if not isinstance(record, dict):
+        record = {}
+
+    if record.get("last_seen_close") == current_close:
+        return False
+
+    seen_count = int(record.get("seen_count", 0)) + 1
+    last_alert_seen_count = int(record.get("last_alert_seen_count", 0))
+    should_alert = not record or seen_count - last_alert_seen_count >= cooldown_candles
+
+    updated = {
+        "last_seen_close": current_close,
+        "seen_count": seen_count,
+        "last_alert_seen_count": last_alert_seen_count,
+        "last_alert_close": record.get("last_alert_close"),
+    }
+    if should_alert:
+        updated["last_alert_seen_count"] = seen_count
+        updated["last_alert_close"] = current_close
+
+    alerts[key] = updated
+    return should_alert
+
+
 def _register_signal(state, symbol, timeframe, strategy_name, signal, reason, levels):
     from core.performance_tracker import register_signal
 
@@ -175,16 +202,33 @@ def build_signal_lines(symbols, state, market_data_service: MarketDataService | 
                 state["last_processed_close_times"][close_key] = current_close
 
                 for sig in signals:
+                    signal = sig["signal"]
+                    reason = sig["reason"]
+                    strategy_name = sig["strategy"]
+                    reason_clean = str(reason or "").replace("FiBB Bands: ", "").strip()
+
+                    if sig.get("candidate_type") == "phase":
+                        phase_key = f"{symbol}:{mode}:{entry_tf}:{signal}"
+                        if not _phase_alert_allowed(state, phase_key, current_close):
+                            continue
+
+                        quality = sig.get("quality", "WATCH")
+                        score_text = f" {sig['score']}/100" if sig.get("score") is not None else ""
+                        message_block = (
+                            f"⚠ {strategy_name}\n\n"
+                            f"{symbol} ({plan['label']} - {entry_tf.upper()}) → {signal} | {quality}{score_text}\n\n"
+                            f"Neden:\n{reason_clean}"
+                        )
+                        results.append(message_block)
+                        continue
+
                     mtf = analyze_mtf_signal(sig, bias_levels, setup_levels, entry_levels, plan, cfg)
                     if not mtf["allowed"]:
                         continue
 
-                    signal = sig["signal"]
-                    reason = sig["reason"]
-                    strategy_name = sig["strategy"]
-
                     price = entry_levels["close"]
                     center = entry_levels["center"]
+                    stop_loss = sig.get("stop_loss", center)
 
                     direction = "LONG" if "LONG" in signal else "SHORT" if "SHORT" in signal else signal
 
@@ -206,8 +250,6 @@ def build_signal_lines(symbols, state, market_data_service: MarketDataService | 
                         ]
                     else:
                         tp_levels = []
-
-                    reason_clean = str(reason or "").replace("FiBB Bands: ", "").strip()
 
                     macro_text = ""
                     macro_dir = macro_direction_for_symbol(symbol)
@@ -234,11 +276,11 @@ def build_signal_lines(symbols, state, market_data_service: MarketDataService | 
 
                     message_block = (
                         f"🚨 {strategy_name}\n\n"
-                        f"{symbol} ({plan['label']} - {entry_tf.upper()}) → {direction} | {mtf['quality']} {mtf['score']}/100\n\n"
+                        f"{symbol} ({plan['label']} - {entry_tf.upper()}) → {direction} | {sig.get('quality', mtf['quality'])} {sig.get('score', mtf['score'])}/100\n\n"
                         f"Neden:\n{reason_clean}\n\n"
                         f"Seviyeler:\n"
                         f"Entry: {price:.2f}\n"
-                        f"SL: {center:.2f}\n"
+                        f"SL: {stop_loss:.2f}\n"
                         f"{tp_text.rstrip()}{macro_text}"
                     )
 

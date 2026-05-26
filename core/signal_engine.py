@@ -1,12 +1,58 @@
 from config import ENABLED_STRATEGIES, STRATEGY_SETTINGS
-from strategies import custom_strategy, ema_cross, fibb_bands, rsi_reversal
+from strategies import custom_strategy, ema_cross, fibb_bands, fibb_strategy, rsi_reversal
 
 STRATEGY_MAP = {
     "custom_strategy": custom_strategy,
+    "fibb_strategy": fibb_strategy,
     "fibb_bands": fibb_bands,
     "ema_cross": ema_cross,
     "rsi_reversal": rsi_reversal,
 }
+
+DISPLAY_NAMES = {
+    "fibb_bands": "FiBB Bands",
+    "fibb_strategy": "FIBB_STRATEGY",
+}
+
+
+def _normalize_strategy_output(name, output):
+    display_name = DISPLAY_NAMES.get(name, name)
+
+    if isinstance(output, tuple):
+        signal, reason = output
+        if not signal:
+            return []
+        return [{
+            "strategy": display_name,
+            "strategy_key": name,
+            "candidate_type": "trade",
+            "signal": signal,
+            "reason": reason,
+        }]
+
+    if isinstance(output, dict):
+        output = [output]
+
+    if not isinstance(output, list):
+        return []
+
+    results = []
+    for item in output:
+        if not isinstance(item, dict) or not item.get("signal"):
+            continue
+        normalized = {
+            "strategy": display_name,
+            "strategy_key": name,
+            "candidate_type": item.get("candidate_type", "trade"),
+            "signal": item.get("signal"),
+            "reason": item.get("reason", ""),
+        }
+        for key in ("phase", "score", "quality", "stop_loss"):
+            if key in item:
+                normalized[key] = item[key]
+        results.append(normalized)
+
+    return results
 
 
 def generate_signals(context):
@@ -25,16 +71,7 @@ def generate_signals(context):
         if settings.get("enabled") is False:
             continue
 
-        signal, reason = module.evaluate(context, settings)
-        if signal:
-            display_name = "FiBB Bands" if name == "fibb_bands" else name
-
-            results.append({
-                "strategy": display_name,
-                "strategy_key": name,
-                "signal": signal,
-                "reason": reason,
-            })
+        results.extend(_normalize_strategy_output(name, module.evaluate(context, settings)))
 
     return results
 
