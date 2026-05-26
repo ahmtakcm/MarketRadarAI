@@ -175,16 +175,29 @@ def build_signal_lines(symbols, state, market_data_service: MarketDataService | 
                 state["last_processed_close_times"][close_key] = current_close
 
                 for sig in signals:
+                    signal = sig["signal"]
+                    reason = sig["reason"]
+                    strategy_name = sig["strategy"]
+                    reason_clean = str(reason or "").replace("FiBB Bands: ", "").strip()
+
+                    if sig.get("candidate_type") == "phase":
+                        quality = sig.get("quality", "WATCH")
+                        score_text = f" {sig['score']}/100" if sig.get("score") is not None else ""
+                        message_block = (
+                            f"⚠ {strategy_name}\n\n"
+                            f"{symbol} ({plan['label']} - {entry_tf.upper()}) → {signal} | {quality}{score_text}\n\n"
+                            f"Neden:\n{reason_clean}"
+                        )
+                        results.append(message_block)
+                        continue
+
                     mtf = analyze_mtf_signal(sig, bias_levels, setup_levels, entry_levels, plan, cfg)
                     if not mtf["allowed"]:
                         continue
 
-                    signal = sig["signal"]
-                    reason = sig["reason"]
-                    strategy_name = sig["strategy"]
-
                     price = entry_levels["close"]
                     center = entry_levels["center"]
+                    stop_loss = sig.get("stop_loss", center)
 
                     direction = "LONG" if "LONG" in signal else "SHORT" if "SHORT" in signal else signal
 
@@ -206,8 +219,6 @@ def build_signal_lines(symbols, state, market_data_service: MarketDataService | 
                         ]
                     else:
                         tp_levels = []
-
-                    reason_clean = str(reason or "").replace("FiBB Bands: ", "").strip()
 
                     macro_text = ""
                     macro_dir = macro_direction_for_symbol(symbol)
@@ -234,11 +245,11 @@ def build_signal_lines(symbols, state, market_data_service: MarketDataService | 
 
                     message_block = (
                         f"🚨 {strategy_name}\n\n"
-                        f"{symbol} ({plan['label']} - {entry_tf.upper()}) → {direction} | {mtf['quality']} {mtf['score']}/100\n\n"
+                        f"{symbol} ({plan['label']} - {entry_tf.upper()}) → {direction} | {sig.get('quality', mtf['quality'])} {sig.get('score', mtf['score'])}/100\n\n"
                         f"Neden:\n{reason_clean}\n\n"
                         f"Seviyeler:\n"
                         f"Entry: {price:.2f}\n"
-                        f"SL: {center:.2f}\n"
+                        f"SL: {stop_loss:.2f}\n"
                         f"{tp_text.rstrip()}{macro_text}"
                     )
 
