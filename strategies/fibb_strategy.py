@@ -13,8 +13,12 @@ ALERT_CONFIRMED_SHORT = "CONFIRMED_SHORT"
 ALERT_EXPANSION_LONG = "EXPANSION_LONG"
 ALERT_EXPANSION_SHORT = "EXPANSION_SHORT"
 ALERT_FAILED_BREAKOUT = "FAILED_BREAKOUT"
+ALERT_WATCH_RETEST = "WATCH_RETEST"
+ALERT_RETEST_LONG = "RETEST_LONG"
+ALERT_RETEST_SHORT = "RETEST_SHORT"
 
 SWING_LOOKBACK = 20
+RETEST_TRADE_SCORE = 85
 
 
 def _phase_candidate(phase, reason, *, score=None, quality="WATCH", alert_class=ALERT_WATCH_PHASE):
@@ -90,6 +94,17 @@ def _in_upper_pullback_zone(levels):
     upper_fib1 = levels["upper_fib1"]
     upper_fib2 = levels["upper_fib2"]
     return upper_fib1 <= high <= upper_fib2 or upper_fib1 <= close <= upper_fib2
+
+
+def _retest_tolerance(levels):
+    center = levels["center"]
+    upper_span = abs(levels["upper_fib1"] - center)
+    lower_span = abs(center - levels["lower_fib1"])
+    return max(upper_span, lower_span, abs(center) * 0.001) * 0.15
+
+
+def _near(value, target, tolerance):
+    return abs(value - target) <= tolerance
 
 
 def _swing_levels(candles, lookback=SWING_LOOKBACK):
@@ -196,6 +211,122 @@ def _short_trade(levels, phase, phase_score, swing_low):
     return _trade_candidate("SHORT", phase, alert_class, notes, score, levels["upper_fib3"])
 
 
+def _long_retest_candidate(levels, phase, phase_score, swing_high):
+    close = levels["close"]
+    high = levels["high"]
+    low = levels["low"]
+    prev_close = levels["prev_close"]
+    center = levels["center"]
+    ema8 = levels["ema8"]
+    ema21 = levels["ema21"]
+    ema89 = levels["ema89"]
+    ema244 = levels["ema244"]
+    tolerance = _retest_tolerance(levels)
+
+    center_hold = (low <= center <= high or _near(low, center, tolerance) or prev_close <= center) and close > center
+    fib_retest = levels["lower_fib1"] <= low <= center or _near(low, levels["lower_fib1"], tolerance)
+    ema89_behavior = (low <= ema89 <= high and close > ema89) or (prev_close < ema89 and close > ema89)
+    ema244_behavior = (low <= ema244 <= high and close > ema244) or (prev_close < ema244 and close > ema244)
+
+    if not (ema8 > ema21 and center_hold and (fib_retest or ema89_behavior or ema244_behavior)):
+        return None
+
+    score = phase_score + 20
+    notes = ["EMA34 ustunde retest tutundu"]
+
+    if fib_retest:
+        score += 10
+        notes.append("Fib -0.618/Fib1 retest bolgesi")
+
+    if ema89_behavior:
+        score += 10
+        notes.append("EMA89 davranisi teyit verdi")
+
+    if ema244_behavior:
+        score += 5
+        notes.append("EMA244 davranisi teyit verdi")
+
+    if swing_high is not None and close > swing_high:
+        score += 10
+        notes.append("Onceki swing high kirildi")
+
+    if phase == PHASE_TREND_EXPANSION:
+        score += 5
+        notes.append("TREND_EXPANSION baglami")
+
+    if score >= RETEST_TRADE_SCORE:
+        return _trade_candidate("LONG", phase or PHASE_RECOVERY, ALERT_RETEST_LONG, notes, score, levels["lower_fib3"])
+
+    if score >= 55:
+        return _phase_candidate(
+            "RETEST_LONG_CANDIDATE",
+            "\n".join([ALERT_WATCH_RETEST, phase or PHASE_RECOVERY, *notes]),
+            score=score,
+            quality=_quality(score),
+            alert_class=ALERT_WATCH_RETEST,
+        )
+
+    return None
+
+
+def _short_retest_candidate(levels, phase, phase_score, swing_low):
+    close = levels["close"]
+    high = levels["high"]
+    low = levels["low"]
+    prev_close = levels["prev_close"]
+    center = levels["center"]
+    ema8 = levels["ema8"]
+    ema21 = levels["ema21"]
+    ema89 = levels["ema89"]
+    ema244 = levels["ema244"]
+    tolerance = _retest_tolerance(levels)
+
+    center_hold = (low <= center <= high or _near(high, center, tolerance) or prev_close >= center) and close < center
+    fib_retest = center <= high <= levels["upper_fib1"] or _near(high, levels["upper_fib1"], tolerance)
+    ema89_behavior = (low <= ema89 <= high and close < ema89) or (prev_close > ema89 and close < ema89)
+    ema244_behavior = (low <= ema244 <= high and close < ema244) or (prev_close > ema244 and close < ema244)
+
+    if not (ema8 < ema21 and center_hold and (fib_retest or ema89_behavior or ema244_behavior)):
+        return None
+
+    score = phase_score + 20
+    notes = ["EMA34 altinda retest tutundu"]
+
+    if fib_retest:
+        score += 10
+        notes.append("Fib +0.618/Fib1 retest bolgesi")
+
+    if ema89_behavior:
+        score += 10
+        notes.append("EMA89 davranisi teyit verdi")
+
+    if ema244_behavior:
+        score += 5
+        notes.append("EMA244 davranisi teyit verdi")
+
+    if swing_low is not None and close < swing_low:
+        score += 10
+        notes.append("Onceki swing low kirildi")
+
+    if phase == PHASE_TREND_EXPANSION:
+        score += 5
+        notes.append("TREND_EXPANSION baglami")
+
+    if score >= RETEST_TRADE_SCORE:
+        return _trade_candidate("SHORT", phase or PHASE_RECOVERY, ALERT_RETEST_SHORT, notes, score, levels["upper_fib3"])
+
+    if score >= 55:
+        return _phase_candidate(
+            "RETEST_SHORT_CANDIDATE",
+            "\n".join([ALERT_WATCH_RETEST, phase or PHASE_RECOVERY, *notes]),
+            score=score,
+            quality=_quality(score),
+            alert_class=ALERT_WATCH_RETEST,
+        )
+
+    return None
+
+
 def evaluate(context, settings=None):
     levels = context.get("levels") or {}
     required = [
@@ -263,6 +394,14 @@ def evaluate(context, settings=None):
     short_candidate = _short_trade(levels, short_phase, short_score, swing_low)
     if short_candidate:
         return [short_candidate]
+
+    long_retest = _long_retest_candidate(levels, long_phase, long_score, swing_high)
+    if long_retest:
+        return [long_retest]
+
+    short_retest = _short_retest_candidate(levels, short_phase, short_score, swing_low)
+    if short_retest:
+        return [short_retest]
 
     if long_phase == PHASE_RECOVERY:
         return [
