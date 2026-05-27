@@ -161,3 +161,123 @@ def test_fibb_strategy_failed_expansion_stays_phase_only():
             "score": 20,
         }
     ]
+
+
+def test_fibb_strategy_long_retest_candidate_stays_phase_when_score_is_not_high_enough():
+    signals = fibb_strategy.evaluate({
+        "levels": _levels(
+            close=101.0,
+            high=101.2,
+            low=99.4,
+            prev_close=99.8,
+            ema8=106.0,
+            ema21=104.0,
+            ema89=99.5,
+            ema244=150.0,
+        )
+    })
+
+    assert signals == [
+        {
+            "candidate_type": "phase",
+            "signal": "RETEST_LONG_CANDIDATE",
+            "phase": "RETEST_LONG_CANDIDATE",
+            "reason": (
+                "WATCH_RETEST\n"
+                "TREND_BUILDING\n"
+                "EMA34 ustunde retest tutundu\n"
+                "Fib -0.618/Fib1 retest bolgesi\n"
+                "EMA89 davranisi teyit verdi"
+            ),
+            "quality": "HIGH",
+            "alert_class": "WATCH_RETEST",
+            "score": 65,
+        }
+    ]
+
+
+def test_fibb_strategy_strong_long_retest_can_become_trade():
+    signals = fibb_strategy.evaluate({
+        "levels": _levels(
+            close=101.0,
+            high=101.4,
+            low=99.0,
+            prev_close=99.8,
+            ema89=99.5,
+            ema244=99.0,
+        ),
+        "candles": _candles(swing_high=100.5),
+    })
+
+    assert signals == [
+        {
+            "candidate_type": "trade",
+            "signal": "LONG",
+            "phase": "TREND_EXPANSION",
+            "alert_class": "RETEST_LONG",
+            "reason": (
+                "RETEST_LONG\n"
+                "TREND_EXPANSION\n"
+                "EMA34 ustunde retest tutundu\n"
+                "Fib -0.618/Fib1 retest bolgesi\n"
+                "EMA89 davranisi teyit verdi\n"
+                "EMA244 davranisi teyit verdi\n"
+                "Onceki swing high kirildi\n"
+                "TREND_EXPANSION baglami"
+            ),
+            "score": 100,
+            "quality": "HIGH",
+            "stop_loss": 83.82,
+        }
+    ]
+
+
+def test_fibb_strategy_short_retest_candidate_uses_watch_phase():
+    signals = fibb_strategy.evaluate({
+        "levels": _levels(
+            close=99.0,
+            high=100.6,
+            low=98.8,
+            prev_close=100.2,
+            ema8=94.0,
+            ema21=96.0,
+            ema89=100.5,
+            ema244=90.0,
+        )
+    })
+
+    assert signals == [
+        {
+            "candidate_type": "phase",
+            "signal": "RETEST_SHORT_CANDIDATE",
+            "phase": "RETEST_SHORT_CANDIDATE",
+            "reason": (
+                "WATCH_RETEST\n"
+                "TREND_BUILDING\n"
+                "EMA34 altinda retest tutundu\n"
+                "Fib +0.618/Fib1 retest bolgesi\n"
+                "EMA89 davranisi teyit verdi"
+            ),
+            "quality": "HIGH",
+            "alert_class": "WATCH_RETEST",
+            "score": 65,
+        }
+    ]
+
+
+def test_fibb_strategy_weak_retest_does_not_become_trade():
+    signals = fibb_strategy.evaluate({
+        "levels": _levels(
+            close=101.0,
+            high=101.2,
+            low=99.4,
+            prev_close=99.8,
+            ema8=102.0,
+            ema21=101.0,
+            ema89=104.0,
+            ema244=105.0,
+        )
+    })
+
+    assert signals[0]["candidate_type"] == "phase"
+    assert signals[0]["signal"] == "RECOVERY"
