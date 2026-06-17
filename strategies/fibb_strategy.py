@@ -403,22 +403,4 @@ def evaluate(context, settings=None):
     if short_retest:
         return [short_retest]
 
-    if long_phase == PHASE_RECOVERY:
-        return [
-            _phase_candidate(
-                PHASE_RECOVERY,
-                "RECOVERY\nEMA8 EMA21 uzerine gecti\nEMA89 ilk direnc olarak izleniyor",
-                score=20 if close > ema89 else 15,
-            )
-        ]
-
-    if short_phase == PHASE_RECOVERY:
-        return [
-            _phase_candidate(
-                PHASE_RECOVERY,
-                "RECOVERY\nEMA8 EMA21 altina indi\nEMA89 ilk destek olarak izleniyor",
-                score=20 if close < ema89 else 15,
-            )
-        ]
-
     return []
