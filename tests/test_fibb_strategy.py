@@ -51,7 +51,7 @@ def test_fibb_strategy_extreme_oversold_is_phase_only():
     ]
 
 
-def test_fibb_strategy_recovery_tracks_ema89_as_first_resistance():
+def test_fibb_strategy_recovery_is_internal_only_without_retest_context():
     signals = fibb_strategy.evaluate({
         "levels": _levels(
             ema8=102.0,
@@ -61,17 +61,7 @@ def test_fibb_strategy_recovery_tracks_ema89_as_first_resistance():
         )
     })
 
-    assert signals == [
-        {
-            "candidate_type": "phase",
-            "signal": "RECOVERY",
-            "phase": "RECOVERY",
-            "reason": "RECOVERY\nEMA8 EMA21 uzerine gecti\nEMA89 ilk direnc olarak izleniyor",
-            "quality": "WATCH",
-            "alert_class": "WATCH_PHASE",
-            "score": 15,
-        }
-    ]
+    assert signals == []
 
 
 def test_fibb_strategy_long_uses_expansion_phase_and_lower_fib3_stop():
@@ -279,5 +269,37 @@ def test_fibb_strategy_weak_retest_does_not_become_trade():
         )
     })
 
-    assert signals[0]["candidate_type"] == "phase"
-    assert signals[0]["signal"] == "RECOVERY"
+    assert signals == []
+
+
+def test_fibb_strategy_recovery_can_be_retest_context_without_standalone_alert():
+    signals = fibb_strategy.evaluate({
+        "levels": _levels(
+            close=102.0,
+            high=102.2,
+            low=99.4,
+            prev_close=99.8,
+            ema8=103.0,
+            ema21=101.0,
+            ema89=101.5,
+            ema244=150.0,
+        )
+    })
+
+    assert signals == [
+        {
+            "candidate_type": "phase",
+            "signal": "RETEST_LONG_CANDIDATE",
+            "phase": "RETEST_LONG_CANDIDATE",
+            "reason": (
+                "WATCH_RETEST\n"
+                "RECOVERY\n"
+                "EMA34 ustunde retest tutundu\n"
+                "Fib -0.618/Fib1 retest bolgesi\n"
+                "EMA89 davranisi teyit verdi"
+            ),
+            "quality": "MEDIUM",
+            "alert_class": "WATCH_RETEST",
+            "score": 55,
+        }
+    ]
