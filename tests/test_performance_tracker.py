@@ -1,4 +1,25 @@
+import builtins
+import importlib
+import sys
+
 from core import performance_tracker
+
+
+def test_performance_tracker_imports_without_settings_file(monkeypatch):
+    original_import = builtins.__import__
+    sys.modules.pop("core.performance_tracker", None)
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "config":
+            raise FileNotFoundError("settings.json missing")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+
+    module = importlib.import_module("core.performance_tracker")
+
+    assert module.SIGNAL_HORIZONS_BARS == [1, 3, 5]
+    assert module.PERFORMANCE_LOG_PATH.name == "performance_log.jsonl"
 
 
 def _pending(signal="LONG", *, stop_loss=95.0, take_profit_levels=None):

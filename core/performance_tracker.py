@@ -1,8 +1,15 @@
 import time
+from pathlib import Path
 
-from config import PERFORMANCE_LOG_PATH, SIGNAL_HORIZONS_BARS
 from core.signal_lifecycle import build_pending_signal_record, build_signal_dedupe_key
 from core.state_store import append_jsonl
+
+try:
+    from config import PERFORMANCE_LOG_PATH, SIGNAL_HORIZONS_BARS
+except Exception:
+    BASE_DIR = Path(__file__).resolve().parents[1]
+    PERFORMANCE_LOG_PATH = BASE_DIR / "data" / "performance_log.jsonl"
+    SIGNAL_HORIZONS_BARS = [1, 3, 5]
 
 
 def register_signal(
