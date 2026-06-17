@@ -11,8 +11,8 @@ def _plan():
     }
 
 
-def _levels():
-    return {
+def _levels(**overrides):
+    base = {
         "close_time": 123,
         "close": 100.0,
         "center": 99.0,
@@ -27,6 +27,8 @@ def _levels():
         "lower_fib4": 73.82,
         "lower_fib5": 63.82,
     }
+    base.update(overrides)
+    return base
 
 
 def _phase_signal(signal):
@@ -40,10 +42,39 @@ def _phase_signal(signal):
     }
 
 
-def _patch_scanner(monkeypatch, signals):
+def _trade_signal(signal, stop_loss):
+    return {
+        "strategy": "FIBB_STRATEGY",
+        "strategy_key": "fibb_strategy",
+        "candidate_type": "trade",
+        "signal": signal,
+        "reason": "TREND_EXPANSION\nFib pullback\nEMA34 geri donus",
+        "quality": "HIGH",
+        "score": 65,
+        "stop_loss": stop_loss,
+    }
+
+
+def _allow_trades(monkeypatch, registered=None):
+    if registered is None:
+        registered = []
+    monkeypatch.setattr(
+        scanner,
+        "analyze_mtf_signal",
+        lambda *_args: {"allowed": True, "quality": "LOW", "score": 10},
+    )
+    monkeypatch.setattr(scanner, "macro_direction_for_symbol", lambda _symbol: None)
+    monkeypatch.setattr(scanner, "get_macro_signal", lambda: {})
+    monkeypatch.setattr(scanner, "log_signal", lambda *args, **kwargs: None)
+    monkeypatch.setattr(scanner, "_register_signal", lambda *args, **kwargs: registered.append(args))
+    return registered
+
+
+def _patch_scanner(monkeypatch, signals, levels=None):
+    levels = levels or _levels()
     monkeypatch.setattr(scanner, "_active_mode_plans", lambda: [_plan()])
     monkeypatch.setattr(scanner, "load_config", lambda: {"filters": {}})
-    monkeypatch.setattr(scanner, "_fetch_context", lambda *_args: ([], _levels()))
+    monkeypatch.setattr(scanner, "_fetch_context", lambda *_args: ([], levels))
     monkeypatch.setattr(scanner, "_generate_signals", lambda _context: signals)
 
 
@@ -108,29 +139,57 @@ def test_scanner_uses_strategy_stop_loss_when_present(monkeypatch):
 
     _patch_scanner(
         monkeypatch,
-        [{
-            "strategy": "FIBB_STRATEGY",
-            "strategy_key": "fibb_strategy",
-            "candidate_type": "trade",
-            "signal": "LONG",
-            "reason": "TREND_EXPANSION\nFib pullback\nEMA34 geri donus",
-            "quality": "HIGH",
-            "score": 65,
-            "stop_loss": 83.82,
-        }],
+        [_trade_signal("LONG", 83.82)],
     )
-    monkeypatch.setattr(
-        scanner,
-        "analyze_mtf_signal",
-        lambda *_args: {"allowed": True, "quality": "LOW", "score": 10},
-    )
-    monkeypatch.setattr(scanner, "macro_direction_for_symbol", lambda _symbol: None)
-    monkeypatch.setattr(scanner, "get_macro_signal", lambda: {})
-    monkeypatch.setattr(scanner, "log_signal", lambda *args, **kwargs: None)
-    monkeypatch.setattr(scanner, "_register_signal", lambda *args, **kwargs: registered.append(args))
+    _allow_trades(monkeypatch, registered)
 
     lines = scanner.build_signal_lines(["BTCUSDT"], {"last_processed_close_times": {}})
 
     assert "LONG | HIGH 65/100" in lines[0]
     assert "SL: 83.82" in lines[0]
     assert registered
+
+
+def test_scanner_filters_long_targets_that_are_not_above_entry(monkeypatch):
+    _patch_scanner(
+        monkeypatch,
+        [_trade_signal("LONG", 83.82)],
+        levels=_levels(close=106.0),
+    )
+    _allow_trades(monkeypatch)
+
+    lines = scanner.build_signal_lines(["BTCUSDT"], {"last_processed_close_times": {}})
+
+    assert "Entry: 106.00" in lines[0]
+    assert "TP1: 105.00" not in lines[0]
+    assert "TP1: 110.00" in lines[0]
+
+
+def test_scanner_filters_short_targets_that_are_not_below_entry(monkeypatch):
+    _patch_scanner(
+        monkeypatch,
+        [_trade_signal("SHORT", 116.18)],
+        levels=_levels(close=94.0),
+    )
+    _allow_trades(monkeypatch)
+
+    lines = scanner.build_signal_lines(["BTCUSDT"], {"last_processed_close_times": {}})
+
+    assert "Entry: 94.00" in lines[0]
+    assert "TP1: 95.00" not in lines[0]
+    assert "TP1: 90.00" in lines[0]
+
+
+def test_scanner_skips_trade_when_stop_loss_is_on_wrong_side(monkeypatch):
+    registered = []
+    _patch_scanner(
+        monkeypatch,
+        [_trade_signal("LONG", 101.0)],
+        levels=_levels(close=100.0),
+    )
+    _allow_trades(monkeypatch, registered)
+
+    lines = scanner.build_signal_lines(["BTCUSDT"], {"last_processed_close_times": {}})
+
+    assert lines == []
+    assert registered == []

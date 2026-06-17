@@ -88,6 +88,26 @@ def _register_signal(state, symbol, timeframe, strategy_name, signal, reason, le
     register_signal(state, symbol, timeframe, strategy_name, signal, reason, levels)
 
 
+def _valid_stop_loss(direction, entry_price, stop_loss):
+    if direction == "LONG":
+        return stop_loss < entry_price
+    if direction == "SHORT":
+        return stop_loss > entry_price
+    return True
+
+
+def _profit_targets(direction, entry_price, levels):
+    if direction == "LONG":
+        keys = ["upper_fib1", "upper_fib2", "upper_fib3", "upper_fib4", "upper_fib5"]
+        return [levels.get(key) for key in keys if levels.get(key) is not None and levels.get(key) > entry_price]
+
+    if direction == "SHORT":
+        keys = ["lower_fib1", "lower_fib2", "lower_fib3", "lower_fib4", "lower_fib5"]
+        return [levels.get(key) for key in keys if levels.get(key) is not None and levels.get(key) < entry_price]
+
+    return []
+
+
 def get_active_symbols(market_data_service: MarketDataService | None = None):
     """
     Borsadaki geçerli futures sembollerini döndürür.
@@ -232,24 +252,27 @@ def build_signal_lines(symbols, state, market_data_service: MarketDataService | 
 
                     direction = "LONG" if "LONG" in signal else "SHORT" if "SHORT" in signal else signal
 
-                    if direction == "LONG":
-                        tp_levels = [
-                            entry_levels.get("upper_fib1"),
-                            entry_levels.get("upper_fib2"),
-                            entry_levels.get("upper_fib3"),
-                            entry_levels.get("upper_fib4"),
-                            entry_levels.get("upper_fib5"),
-                        ]
-                    elif direction == "SHORT":
-                        tp_levels = [
-                            entry_levels.get("lower_fib1"),
-                            entry_levels.get("lower_fib2"),
-                            entry_levels.get("lower_fib3"),
-                            entry_levels.get("lower_fib4"),
-                            entry_levels.get("lower_fib5"),
-                        ]
-                    else:
-                        tp_levels = []
+                    if not _valid_stop_loss(direction, price, stop_loss):
+                        logging.warning(
+                            "Trade sinyali atlandi: stop loss entry yonune gore gecersiz | %s %s %s entry=%s sl=%s",
+                            symbol,
+                            entry_tf,
+                            direction,
+                            price,
+                            stop_loss,
+                        )
+                        continue
+
+                    tp_levels = _profit_targets(direction, price, entry_levels)
+                    if direction in {"LONG", "SHORT"} and not tp_levels:
+                        logging.warning(
+                            "Trade sinyali atlandi: entry yonunde kar hedefi yok | %s %s %s entry=%s",
+                            symbol,
+                            entry_tf,
+                            direction,
+                            price,
+                        )
+                        continue
 
                     macro_text = ""
                     macro_dir = macro_direction_for_symbol(symbol)
