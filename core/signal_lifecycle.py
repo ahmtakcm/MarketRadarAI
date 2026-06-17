@@ -15,6 +15,8 @@ class SignalLifecycleCandidate:
     entry_price: float
     close_time: int
     target_horizons: list[int]
+    stop_loss: float | None = None
+    take_profit_levels: list[float] | None = None
 
 
 def build_signal_dedupe_key(
@@ -37,6 +39,8 @@ def build_pending_signal_record(
     levels: dict[str, Any],
     target_horizons: list[int],
     timestamp: int | None = None,
+    stop_loss: float | None = None,
+    take_profit_levels: list[float] | None = None,
 ) -> dict[str, Any]:
     candidate = SignalLifecycleCandidate(
         symbol=symbol,
@@ -47,6 +51,8 @@ def build_pending_signal_record(
         entry_price=levels["close"],
         close_time=levels["close_time"],
         target_horizons=list(target_horizons),
+        stop_loss=stop_loss,
+        take_profit_levels=list(take_profit_levels or []),
     )
     signal_id = build_signal_dedupe_key(
         candidate.symbol,
@@ -55,7 +61,7 @@ def build_pending_signal_record(
         candidate.close_time,
         candidate.signal,
     )
-    return {
+    record = {
         "timestamp": int(time.time()) if timestamp is None else int(timestamp),
         "id": signal_id,
         "symbol": candidate.symbol,
@@ -67,3 +73,8 @@ def build_pending_signal_record(
         "close_time": candidate.close_time,
         "target_horizons": candidate.target_horizons,
     }
+    if candidate.stop_loss is not None:
+        record["stop_loss"] = candidate.stop_loss
+    if candidate.take_profit_levels:
+        record["take_profit_levels"] = candidate.take_profit_levels
+    return record

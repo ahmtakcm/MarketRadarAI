@@ -150,6 +150,27 @@ def test_scanner_uses_strategy_stop_loss_when_present(monkeypatch):
     assert registered
 
 
+def test_scanner_logs_trade_plan_levels(monkeypatch):
+    rows = []
+    monkeypatch.setattr(scanner, "append_jsonl", lambda _path, row: rows.append(row))
+    monkeypatch.setattr(scanner, "_signals_log_path", lambda: "signals.jsonl")
+
+    scanner.log_signal(
+        "BTCUSDT",
+        "15m",
+        "FIBB_STRATEGY",
+        "LONG",
+        "breakout",
+        {"close": 100.0, "center": 99.0, "close_time": 123},
+        mode="intraday",
+        stop_loss=95.0,
+        take_profit_levels=[105.0, 110.0],
+    )
+
+    assert rows[0]["stop_loss"] == 95.0
+    assert rows[0]["take_profit_levels"] == [105.0, 110.0]
+
+
 def test_scanner_filters_long_targets_that_are_not_above_entry(monkeypatch):
     _patch_scanner(
         monkeypatch,

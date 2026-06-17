@@ -32,3 +32,21 @@ def test_signal_lifecycle_pending_record_contract_matches_existing_state_shape()
         "close_time": 123456,
         "target_horizons": [1, 3, 5],
     }
+
+
+def test_signal_lifecycle_pending_record_can_include_trade_plan_levels():
+    record = build_pending_signal_record(
+        symbol="BTCUSDT",
+        timeframe="15m",
+        strategy="FIBB_STRATEGY",
+        signal="LONG",
+        reason="breakout",
+        levels={"close": 100.0, "close_time": 123456},
+        target_horizons=[1, 3, 5],
+        timestamp=99,
+        stop_loss=95.0,
+        take_profit_levels=[105.0, 110.0],
+    )
+
+    assert record["stop_loss"] == 95.0
+    assert record["take_profit_levels"] == [105.0, 110.0]

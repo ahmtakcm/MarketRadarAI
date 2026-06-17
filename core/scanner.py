@@ -82,10 +82,31 @@ def _phase_alert_allowed(state, key, current_close, cooldown_candles=4):
     return should_alert
 
 
-def _register_signal(state, symbol, timeframe, strategy_name, signal, reason, levels):
+def _register_signal(
+    state,
+    symbol,
+    timeframe,
+    strategy_name,
+    signal,
+    reason,
+    levels,
+    *,
+    stop_loss=None,
+    take_profit_levels=None,
+):
     from core.performance_tracker import register_signal
 
-    register_signal(state, symbol, timeframe, strategy_name, signal, reason, levels)
+    register_signal(
+        state,
+        symbol,
+        timeframe,
+        strategy_name,
+        signal,
+        reason,
+        levels,
+        stop_loss=stop_loss,
+        take_profit_levels=take_profit_levels,
+    )
 
 
 def _valid_stop_loss(direction, entry_price, stop_loss):
@@ -116,7 +137,18 @@ def get_active_symbols(market_data_service: MarketDataService | None = None):
     return _service(market_data_service).get_valid_futures_symbols()
 
 
-def log_signal(symbol, timeframe, strategy_name, signal, reason, levels, mode=None):
+def log_signal(
+    symbol,
+    timeframe,
+    strategy_name,
+    signal,
+    reason,
+    levels,
+    mode=None,
+    *,
+    stop_loss=None,
+    take_profit_levels=None,
+):
     row = {
         "timestamp": int(time.time()),
         "symbol": symbol,
@@ -129,6 +161,10 @@ def log_signal(symbol, timeframe, strategy_name, signal, reason, levels, mode=No
         "center": levels["center"],
         "close_time": levels["close_time"],
     }
+    if stop_loss is not None:
+        row["stop_loss"] = stop_loss
+    if take_profit_levels:
+        row["take_profit_levels"] = list(take_profit_levels)
     append_jsonl(_signals_log_path(), row)
 
 
@@ -308,8 +344,28 @@ def build_signal_lines(symbols, state, market_data_service: MarketDataService | 
                     )
 
                     results.append(message_block)
-                    log_signal(symbol, entry_tf, strategy_name, signal, reason, entry_levels, mode=mode)
-                    _register_signal(state, symbol, entry_tf, strategy_name, signal, reason, entry_levels)
+                    log_signal(
+                        symbol,
+                        entry_tf,
+                        strategy_name,
+                        signal,
+                        reason,
+                        entry_levels,
+                        mode=mode,
+                        stop_loss=stop_loss,
+                        take_profit_levels=tp_levels,
+                    )
+                    _register_signal(
+                        state,
+                        symbol,
+                        entry_tf,
+                        strategy_name,
+                        signal,
+                        reason,
+                        entry_levels,
+                        stop_loss=stop_loss,
+                        take_profit_levels=tp_levels,
+                    )
 
             if results:
                 block = f"{symbol}\n" + "\n".join(results)
