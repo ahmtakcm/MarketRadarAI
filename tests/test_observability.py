@@ -43,12 +43,12 @@ def test_scan_observation_format_includes_modes_and_symbol_count():
 def test_deployment_docs_include_current_service_and_restart_loop_triage():
     text = Path("docs/DEPLOYMENT.md").read_text(encoding="utf-8")
 
-    assert "mexc-tarama-bot.service" in text
+    assert "Systemd unit: `marketradarai.service`" in text
     assert "MarketRadarAI scanner service" in text
     assert "Restart Loop Triage" in text
     assert "Restart=on-failure" in text
-    assert "StandardError=journal" in text
-    assert "journalctl -u mexc-tarama-bot.service" in text
+    assert "journalctl -u marketradarai.service" in text
+    assert "mexc-tarama-bot.service.compat" in text
 
 
 def test_duplicate_instance_exit_is_visible(caplog, capsys):

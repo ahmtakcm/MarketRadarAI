@@ -6,7 +6,7 @@ MarketRadarAI separates the user watchlist from the symbols that a specific mark
 
 - Active source: MEXC futures.
 - Current supported asset class: crypto futures symbols available from MEXC.
-- Repo and service names may still contain `mexc-tarama-bot` for backward compatibility.
+- The legacy `mexc-tarama-bot` name remains only in the compatibility unit and rollback documentation.
 
 ## Resolution Flow
 

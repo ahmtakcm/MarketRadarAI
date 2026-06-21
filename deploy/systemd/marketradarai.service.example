@@ -5,12 +5,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/ahmtakcm/mexc-tarama-bot
-ExecStart=/home/ahmtakcm/mexc-tarama-bot/venv/bin/python -u /home/ahmtakcm/mexc-tarama-bot/main.py
+WorkingDirectory=/home/ahmtakcm/MarketRadarAI
+ExecStart=/home/ahmtakcm/MarketRadarAI/venv/bin/python -u /home/ahmtakcm/MarketRadarAI/main.py
 Restart=on-failure
 RestartSec=5
 Environment=MARKETRADAR_LOG_LEVEL=INFO
-Environment=MEXC_LOG_LEVEL=INFO
 StandardOutput=journal
 StandardError=journal
 

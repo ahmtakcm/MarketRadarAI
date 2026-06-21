@@ -1,13 +1,15 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-LOG_DIR="$HOME/mexc_tarama/logs"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+PROJECT_DIR="$(dirname -- "$SCRIPT_DIR")"
+LOG_DIR="$PROJECT_DIR/logs"
 APP_LOG="$LOG_DIR/app.log"
-MAX_SIZE=$((1024 * 1024))   # 1 MB
+MAX_SIZE=$((1024 * 1024))  # 1 MB
 KEEP_LINES=1000
 
 mkdir -p "$LOG_DIR"
 
-# app.log 1 MB üstüne çıkarsa son 1000 satırı bırak
+# Keep the last 1000 lines when app.log exceeds 1 MB.
 if [ -f "$APP_LOG" ]; then
   size=$(wc -c < "$APP_LOG")
   if [ "$size" -gt "$MAX_SIZE" ]; then
@@ -15,5 +17,5 @@ if [ -f "$APP_LOG" ]; then
   fi
 fi
 
-# 7 günden eski geçici/yedek logları sil
+# Delete temporary log backups older than seven days.
 find "$LOG_DIR" -type f \( -name "*.old" -o -name "*.bak" -o -name "*.tmp" \) -mtime +7 -delete 2>/dev/null
