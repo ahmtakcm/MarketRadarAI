@@ -54,8 +54,8 @@ After deploy:
 
 ```bash
 git status --short
-python -m pytest
-journalctl -u mexc-tarama-bot.service -n 80 --no-pager
+venv/bin/python -m pytest
+journalctl -u marketradarai.service -n 80 --no-pager
 ```
 
 Expected:

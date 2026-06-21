@@ -1,13 +1,13 @@
 # MarketRadarAI
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ahmtakcm/mexc-tarama-bot)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ahmtakcm/MarketRadarAI)
 
-[![RepoWiki](https://repowiki.com/badge.svg)](https://repowiki.com/ahmtakcm/mexc-tarama-bot)
+[![RepoWiki](https://repowiki.com/badge.svg)](https://repowiki.com/ahmtakcm/MarketRadarAI)
 
 MarketRadarAI is a multi-timeframe market scanning and Telegram signal notification bot.
 The current market-data source is MEXC futures. MEXC is a data-source detail, not the product identity.
 
-The repository may still appear as `mexc-tarama-bot` on legacy production nodes. New service/path migration should use the MarketRadarAI identity and follow `docs/DEPLOYMENT.md`.
+Production runs as `marketradarai.service` from `~/MarketRadarAI`. Legacy service and path names are retained only in compatibility and rollback documentation.
 
 ## Current Runtime Contract
 

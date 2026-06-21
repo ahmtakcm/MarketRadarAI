@@ -1,191 +1,97 @@
 # MarketRadarAI Deployment
 
-This repository currently runs in production from `main` under the legacy service name
-`mexc-tarama-bot.service` and legacy server path `~/mexc-tarama-bot`. The visible product
-identity is MarketRadarAI. The rename must be applied manually in production after this PR is merged.
+Production runs from `main` with the MarketRadarAI identity:
+
+- GitHub repository: `ahmtakcm/MarketRadarAI`
+- Server checkout: `/home/ahmtakcm/MarketRadarAI`
+- Systemd unit: `marketradarai.service`
+- Service description: `MarketRadarAI scanner service`
+- Market-data source: MEXC futures
+- Runtime config: `runtime/remote_config.json`
+- State and journals: `data/`
+- Application log: `logs/app.log`
+- System log: `journalctl -u marketradarai.service`
+
+`MEXC` remains a data-source name, not the product identity. The legacy
+`mexc-tarama-bot` name is retained only in compatibility and historical log references.
 
 ## Production Service Checklist
 
-- Service name: `mexc-tarama-bot.service`
-- Recommended description: `MarketRadarAI scanner service`
-- Repo-managed target unit: `deploy/systemd/marketradarai.service`
-- Repo-managed compatibility unit: `deploy/systemd/mexc-tarama-bot.service.compat`
-- WorkingDirectory: production checkout path, usually the server `mexc-tarama-bot` directory
-- ExecStart: project virtualenv or Python interpreter running `main.py`
-- Restart policy: prefer `Restart=on-failure`. Avoid `Restart=always` unless intentionally running one-shot jobs.
-- RestartSec: keep a small delay, for example `RestartSec=5`
-- StandardOutput: `journal`
-- StandardError: `journal`
-- Environment: `MARKETRADAR_LOG_LEVEL=INFO` unless debugging
-- Legacy environment: `MEXC_LOG_LEVEL=INFO` remains supported as a fallback
-- Telegram environment: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_CHAT_ID`, `TELEGRAM_GROUP_CHAT_ID`
-- Environment: `MARKETRADAR_RUNTIME_CONFIG=/absolute/path/to/runtime/remote_config.json` when overriding the default
-- Runtime config: `runtime/remote_config.json`
-- App log: `logs/app.log`; the same application log stream is also written to stderr for journald capture.
-- System log: `journalctl -u mexc-tarama-bot.service`
+- Use `deploy/systemd/marketradarai.service` as the canonical unit.
+- Keep `WorkingDirectory=/home/ahmtakcm/MarketRadarAI`.
+- Run `/home/ahmtakcm/MarketRadarAI/venv/bin/python -u main.py`.
+- Use `Restart=on-failure` with a short `RestartSec` delay.
+- Send stdout and stderr to journald.
+- Use `MARKETRADAR_LOG_LEVEL`; `MEXC_LOG_LEVEL` is supported only as a legacy fallback.
+- Keep Telegram credentials outside git.
+- Never delete or overwrite `runtime/remote_config.json` during deployment.
 
 ## Deploy Flow
 
-1. Merge reviewed PR into `main`.
-2. On the server, verify current branch is `main`.
-3. Pull latest `main`.
-4. Run `ruff check .`.
-5. Run `pytest`.
-6. Verify `runtime/remote_config.json` exists and preserves production overrides.
-7. Restart `mexc-tarama-bot.service`.
-8. Check `systemctl status mexc-tarama-bot.service`.
-9. Check `journalctl -u mexc-tarama-bot.service -n 120 --no-pager`.
-10. Confirm `logs/app.log` contains `MarketRadarAI startup` and `MarketRadarAI startup success`.
-11. Confirm startup logs include `MarketRadarAI asset universe` with supported and unsupported counts.
+1. Merge the reviewed PR into `main`.
+2. Confirm the server checkout is clean and on `main`:
+   `cd ~/MarketRadarAI && git status --short --branch`
+3. Back up runtime state:
+   `mkdir -p backups/pre_deploy_$(date -u +%Y%m%dT%H%M%SZ)`
+4. Pull with fast-forward only:
+   `git pull --ff-only origin main`
+5. Run validation:
+   `venv/bin/python -m ruff check .`
+6. Run tests:
+   `venv/bin/python -m pytest`
+7. Confirm `runtime/remote_config.json` still exists.
+8. Restart:
+   `sudo systemctl restart marketradarai.service`
+9. Verify:
+   `systemctl status marketradarai.service --no-pager`
+10. Inspect logs:
+    `journalctl -u marketradarai.service -n 120 --no-pager`
+11. Confirm `MarketRadarAI startup success` and a completed scan cycle.
 
 ## Restart Loop Triage
 
-Past production observations included a high systemd restart counter and `Deactivated successfully`.
-That message means the Python process exited cleanly with status 0, not that systemd saw a crash.
-MarketRadarAI is designed as a long-running daemon from `main.py`; a clean exit is expected only for
-operator shutdown, duplicate-instance guard exit, or a service command that starts the wrong process.
+`Deactivated successfully` means the Python process exited with status 0. It is expected
+for an operator stop or duplicate-instance guard, but not during normal daemon operation.
 
-If the unit uses `Restart=always`, systemd will restart even clean exits. That can turn duplicate
-instance guard exits into a restart counter loop. Prefer `Restart=on-failure` for this daemon so
-clean exits stay stopped while real crashes still restart.
+Check:
 
-Check these first:
-
-- `journalctl -u mexc-tarama-bot.service -n 200 --no-pager`
-- `journalctl -u mexc-tarama-bot.service --since "1 hour ago" --no-pager`
+- `journalctl -u marketradarai.service -n 200 --no-pager`
 - `tail -n 200 logs/app.log`
-- `grep -i "fatal crash\|startup\|scan start\|scan finish\|force_scan_once" logs/app.log`
+- `pgrep -af MarketRadarAI/main.py`
+- `systemctl show marketradarai.service -p Restart -p MainPID -p ExecMainStatus`
 
-The app now logs:
+Only one MarketRadarAI process should own scanner and Telegram polling. A Telegram 409
+`getUpdates` conflict means another process or host is polling with the same bot token.
 
-- startup metadata: exchange, active modes, watchlist count, state path, runtime config path
-- asset universe summary: requested, supported, and unsupported watchlist counts
-- startup success after symbols are loaded and watchlist filtering is applied
-- scan loop start and finish, including active modes and symbol count
-- `/scan_now` flag consumption with active modes and watchlist count
-- duplicate-instance guard exits, including the lock path
-- fatal crash visibility before process exit
-- KeyboardInterrupt shutdown visibility
+## Legacy Compatibility
 
-Application logs are written to both `logs/app.log` and stderr. With `StandardError=journal`, the
-same startup, scan, shutdown, and fatal-crash lines should be visible in `journalctl`.
-
-## Safe Service Rename Plan
-
-Do not rename the systemd unit automatically in this PR. Apply the following steps manually on the server.
-
-Target:
+The migration from these names is complete:
 
 - Old service: `mexc-tarama-bot.service`
-- New service: `marketradarai.service`
 - Old path: `/home/ahmtakcm/mexc-tarama-bot`
-- New path: `/home/ahmtakcm/MarketRadarAI`
-- Old GitHub remote: `ahmtakcm/mexc-tarama-bot`
-- Future GitHub remote: `ahmtakcm/MarketRadarAI`
+- Old repository: `ahmtakcm/mexc-tarama-bot`
 
-### Preflight
+The repo keeps `deploy/systemd/mexc-tarama-bot.service.compat` only as a rollback reference.
+The old production unit should remain disabled and should not be started alongside
+`marketradarai.service`.
 
-1. Confirm current production is healthy:
-   `sudo systemctl status mexc-tarama-bot.service`
-2. Confirm current logs:
-   `journalctl -u mexc-tarama-bot.service -n 120 --no-pager`
-3. Confirm working tree on server:
-   `cd ~/mexc-tarama-bot && git status --short --branch`
-4. Confirm tests on `main`:
-   `ruff check . && pytest`
-5. Back up runtime config:
-   `mkdir -p ~/marketradarai-migration-backup && cp runtime/remote_config.json ~/marketradarai-migration-backup/remote_config.json.$(date +%Y%m%d%H%M%S)`
+Historical journald entries remain available with:
 
-### Path And Remote Rename
-
-1. Stop the old service:
-   `sudo systemctl stop mexc-tarama-bot.service`
-2. Rename the directory:
-   `mv ~/mexc-tarama-bot ~/MarketRadarAI`
-3. Enter the new directory:
-   `cd ~/MarketRadarAI`
-4. If the GitHub repository has already been renamed, update remote:
-   `git remote set-url origin git@github.com:ahmtakcm/MarketRadarAI.git`
-5. If the GitHub repository has not been renamed yet, keep the old remote temporarily:
-   `git remote -v`
-6. Verify branch and files:
-   `git status --short --branch`
-
-### Unit Rename
-
-1. Copy the repo-managed target unit:
-   `sudo cp deploy/systemd/marketradarai.service /etc/systemd/system/marketradarai.service`
-2. Verify or edit paths in the unit:
-   `sudo systemctl cat marketradarai.service`
-3. Reload systemd:
-   `sudo systemctl daemon-reload`
-4. Start the new service:
-   `sudo systemctl start marketradarai.service`
-5. Validate:
-   `sudo systemctl status marketradarai.service`
-6. Validate new journal:
-   `journalctl -u marketradarai.service -n 120 --no-pager`
-7. Validate app log continuity:
-   `tail -n 120 logs/app.log`
-8. Telegram smoke test: `/help`, `/status`, `/watchlist`, `/scan_now`.
-9. Disable old service only after validation:
-   `sudo systemctl disable mexc-tarama-bot.service`
-
-## Repo And Path Rename Plan
-
-Repository and server path rename are prepared by this PR but not applied automatically.
-
-Future low-risk migration:
-
-1. Rename GitHub repository after all active PRs are merged.
-2. Update local/server git remotes with the new GitHub URL.
-3. Create or move the server directory to the target MarketRadarAI path.
-4. Keep the old `mexc-tarama-bot` directory until the new service is validated.
-5. Update systemd `WorkingDirectory` and `ExecStart`.
-6. Run `systemctl daemon-reload`.
-7. Start the new service and confirm journal continuity.
-8. Roll back by stopping the new service and starting `mexc-tarama-bot.service` from the old path.
+- `journalctl -u mexc-tarama-bot.service`
+- `journalctl -u marketradarai.service`
 
 ## Rollback
 
-If the new service fails:
+1. Stop `marketradarai.service`.
+2. Revert the deployment through a reviewed git revert on `main`.
+3. Preserve `runtime/remote_config.json`, `data/state.json`, and all journals.
+4. Restore runtime files from the pre-deploy checkpoint only if they are missing or corrupt.
+5. Start `marketradarai.service` and repeat the health checks.
 
-1. Stop the new unit:
-   `sudo systemctl stop marketradarai.service`
-2. Re-enable or start the old unit:
-   `sudo systemctl start mexc-tarama-bot.service`
-3. If the directory was renamed and old unit paths are still legacy paths, move it back:
-   `mv ~/MarketRadarAI ~/mexc-tarama-bot`
-4. Reload systemd if units were edited:
-   `sudo systemctl daemon-reload`
-5. Validate old service:
-   `sudo systemctl status mexc-tarama-bot.service`
-6. Check old journal:
-   `journalctl -u mexc-tarama-bot.service -n 120 --no-pager`
+Do not reactivate the legacy service unless a verified rollback procedure explicitly requires it.
 
-Rollback must not delete `runtime/remote_config.json`. Restore it only from the preflight backup if the file is missing or corrupt.
+## Manual Identity Checks
 
-## Journal And Log Continuity
-
-Systemd journals are unit-name scoped. After rename, old logs remain under:
-
-- `journalctl -u mexc-tarama-bot.service`
-
-New logs appear under:
-
-- `journalctl -u marketradarai.service`
-
-Application file logs remain in the project path:
-
-- old path: `/home/ahmtakcm/mexc-tarama-bot/logs/app.log`
-- new path: `/home/ahmtakcm/MarketRadarAI/logs/app.log`
-
-If the directory is moved rather than freshly cloned, file log continuity is preserved in the moved `logs/` directory.
-
-## Deferred
-
-- Rename the systemd unit.
-- Rename server directory or repository.
-- Change Telegram bot display name or username.
-- Move polling ownership out of `main.py`.
-- Change scanner or exchange adapter architecture.
+- Confirm the Telegram BotFather display name is `MarketRadarAI`.
+- Confirm Telegram help/status/watchlist messages start with `MarketRadarAI`.
+- Keep `MEXC` visible only where the active exchange or data source is being described.
